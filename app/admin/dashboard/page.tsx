@@ -8,11 +8,11 @@ import { AreaChart, BarChart, PieChart } from '@/components/ui/chart';
 import { StatsCard } from '@/components/ui/stats-card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Badge } from '@/components/ui/badge';
-import { AnalyticsData, DonationStatus } from '@/lib/types';
+import { AnalyticsData, DonationStatus } from '@/lib/types'; // AnalyticsData might need adjustment
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
-import { Users, Package, Building, FileSpreadsheet, CalendarClock, ShoppingBag } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+import { collection, getDocs, query, orderBy, limit, doc, getDoc } from 'firebase/firestore'; // Added doc, getDoc
+import { Users, Package, Building, FileSpreadsheet, CalendarClock, ShoppingBag, AlertTriangle } from 'lucide-react'; // Added AlertTriangle
+import { toast as sonnerToast } from 'sonner'; // Using sonner directly for consistency
 import { Input } from '@/components/ui/input';
 import { DashboardShell } from '@/components/layout/dashboard-shell';
 
@@ -21,99 +21,74 @@ export default function AdminDashboardPage() {
   const [recentDonations, setRecentDonations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       setLoading(true);
+      setError(null);
       try {
-        // Fetch total donations
-        const donationsSnapshot = await getDocs(collection(db, 'donations'));
-        const totalDonations = donationsSnapshot.size;
+        // Fetch Aggregated Analytics from 'analytics/summary'
+        const analyticsDocRef = doc(db, 'analytics', 'summary');
+        const analyticsDocSnap = await getDoc(analyticsDocRef);
 
-        // Fetch active donations
-        const activeDonationsSnapshot = await getDocs(query(collection(db, 'donations'), where('status', '==', 'active')));
-        const activeDonations = activeDonationsSnapshot.size;
+        if (analyticsDocSnap.exists()) {
+          const summaryData = analyticsDocSnap.data();
+          setAnalyticsData({
+            totalDonations: summaryData.totalDonations || 0,
+            activeDonations: summaryData.activeDonations || 0,
+            completedDonations: summaryData.completedDonations || 0,
+            totalRecipients: summaryData.totalRecipients || 0,
+            totalDonors: summaryData.totalDonors || 0,
+            donationsByCategory: summaryData.donationsByCategory || {},
+            // Firestore stores donationTrend as an object, e.g., {"Jan 2024": 5, "Feb 2024": 10}
+            // This will be transformed later for the chart
+            donationTrend: summaryData.donationTrend || {},
+            impactMetrics: summaryData.impactMetrics || { mealsProvided: 0, foodWasteSaved: 0, carbonFootprint: 0 },
+          });
+        } else {
+          console.warn("Analytics summary document not found!");
+          sonnerToast.warning('Analytics summary not found. Some data may be incomplete.');
+          // Set to default/empty state if summary doc doesn't exist
+          setAnalyticsData({
+            totalDonations: 0,
+            activeDonations: 0,
+            completedDonations: 0,
+            totalRecipients: 0,
+            totalDonors: 0,
+            donationsByCategory: {},
+            donationTrend: {},
+            impactMetrics: { mealsProvided: 0, foodWasteSaved: 0, carbonFootprint: 0 },
+          });
+        }
 
-        // Fetch completed donations
-        const completedDonationsSnapshot = await getDocs(query(collection(db, 'donations'), where('status', '==', 'completed')));
-        const completedDonations = completedDonationsSnapshot.size;
-
-        // Fetch total recipients (users with role 'recipient')
-        const recipientsSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'recipient')));
-        const totalRecipients = recipientsSnapshot.size;
-
-        // Fetch total donors (users with role 'donor')
-        const donorsSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'donor')));
-        const totalDonors = donorsSnapshot.size;
-
-        // Fetch donations by category (requires aggregation, simplified for now)
-        // A more robust solution would involve cloud functions or pre-aggregated data
-        const donationsByCategory: { [key: string]: number } = {};
-        donationsSnapshot.docs.forEach(doc => {
-          const category = doc.data().category || 'Other';
-          donationsByCategory[category] = (donationsByCategory[category] || 0) + 1;
-        });
-
-        // Fetch donation trend (requires aggregation, simplified for now)
-        // A more robust solution would involve cloud functions or pre-aggregated data
-        const donationTrend: { date: string; count: number }[] = [];
-        // Example: Group by month
-        const monthlyCounts: { [key: string]: number } = {};
-        donationsSnapshot.docs.forEach(doc => {
-          const createdAt = doc.data().createdAt?.toDate();
-          if (createdAt) {
-            const monthYear = `${createdAt.getFullYear()}-${(createdAt.getMonth() + 1).toString().padStart(2, '0')}`;
-            monthlyCounts[monthYear] = (monthlyCounts[monthYear] || 0) + 1;
-          }
-        });
-        Object.keys(monthlyCounts).sort().forEach(monthYear => {
-          donationTrend.push({ date: monthYear, count: monthlyCounts[monthYear] });
-        });
-
-        // Impact metrics (mocked for now, requires more complex logic)
-        const impactMetrics = {
-          mealsProvided: 0, // Needs calculation based on quantity/type
-          foodWasteSaved: 0, // Needs calculation
-          carbonFootprint: 0 // Needs calculation
-        };
-
-        setAnalyticsData({
-          totalDonations,
-          activeDonations,
-          completedDonations,
-          totalRecipients,
-          totalDonors,
-          donationsByCategory,
-          donationTrend,
-          impactMetrics,
-        });
-
-        // Fetch recent donations (last 5)
+        // Fetch recent donations (last 5) - this remains a direct query
         const recentDonationsQuery = query(
           collection(db, 'donations'),
           orderBy('createdAt', 'desc'),
           limit(5)
         );
         const recentDonationsSnapshot = await getDocs(recentDonationsQuery);
-        const fetchedRecentDonations = recentDonationsSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate() || new Date(),
-          updatedAt: doc.data().updatedAt?.toDate() || new Date(),
-          expiryDate: doc.data().expiryDate?.toDate() || new Date(),
-          completedAt: doc.data().completedAt?.toDate() || null,
-          reservedAt: doc.data().reservedAt?.toDate() || null,
-        }));
+        const fetchedRecentDonations = recentDonationsSnapshot.docs.map(docSnap => { // Renamed doc to docSnap
+          const data = docSnap.data();
+          return {
+            id: docSnap.id,
+            ...data,
+            createdAt: data.createdAt?.toDate() || new Date(),
+            updatedAt: data.updatedAt?.toDate() || new Date(),
+            expiryDate: data.expiryDate?.toDate() || new Date(),
+            completedAt: data.completedAt?.toDate() || null,
+            reservedAt: data.reservedAt?.toDate() || null,
+          } as any; // Cast to any or ensure Donation type matches
+        });
         setRecentDonations(fetchedRecentDonations);
 
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to load dashboard data.',
-          variant: 'destructive',
-        });
+      } catch (err) {
+        console.error('Error fetching dashboard data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load dashboard data.');
+        sonnerToast.error('Failed to load dashboard data.');
+      } finally {
         setLoading(false);
       }
     };
@@ -125,11 +100,28 @@ export default function AdminDashboardPage() {
     return <div className="flex items-center justify-center h-96">Loading dashboard data...</div>;
   }
 
+  if (error && !analyticsData) { // Show full page error if initial analytics load failed
+    return (
+      <DashboardShell>
+        <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)]">
+          <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
+          <h2 className="text-2xl font-semibold text-destructive mb-2">Error Loading Dashboard</h2>
+          <p className="text-muted-foreground mb-4">{error}</p>
+          <Button onClick={() => window.location.reload()} variant="outline">Try Again</Button>
+        </div>
+      </DashboardShell>
+    );
+  }
+
   // Data for charts
-  const donationTrendData = analyticsData?.donationTrend.map((item) => ({
-    name: item.date,
-    value: item.count
-  })) || [];
+  // Transform donationTrend from object to array for the chart
+  const trendDataFromAnalytics = analyticsData?.donationTrend || {};
+  const donationTrendData = Object.entries(trendDataFromAnalytics)
+    .map(([date, count]) => ({ name: date, value: count as number }))
+    // Optional: Sort by date if needed, though Firestore map keys might not guarantee order
+    // .sort((a, b) => new Date(a.name).getTime() - new Date(b.name).getTime());
+    // Assuming the keys are "Mon YYYY" and need specific sort order, this might need custom sort.
+    // For simplicity, using as-is for now.
 
   const donationCategoryData = analyticsData ? 
     Object.entries(analyticsData.donationsByCategory).map(([name, value]) => ({
