@@ -1,4 +1,5 @@
 import {onRequest} from "firebase-functions/v2/https";
+import {onCall, HttpsError} from "firebase-functions/v2/https"; // Import onCall and HttpsError
 import {onDocumentCreated, onDocumentUpdated} from "firebase-functions/v2/firestore";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import * as admin from "firebase-admin";
@@ -827,5 +828,82 @@ export const sendDonationStatusEmail = onDocumentUpdated("donations/{donationId}
     logger.info(`Email notifications queued for donation ${donationId} status change to ${newStatus}`);
   } catch (error) {
     logger.error(`Error queuing email notifications for donation ${donationId}:`, error);
+  }
+});
+
+// Callable function to delete a user account
+export const deleteUserAccount = onCall(async (request) => {
+  // Destructure data and auth from the request object for v2 onCall
+  const data = request.data;
+  const context = request.auth;
+
+  logger.info("deleteUserAccount function called", {data, authContextUid: context?.uid});
+
+  // 1. Authentication: Check if the caller is an admin
+  // Roles are custom claims, ensure they are set on the user's token
+  if (!context || context.token.role !== "admin") {
+    logger.error("Unauthorized attempt to delete user:", {
+      uid: context?.uid,
+      role: context?.token.role,
+      targetUid: data.userIdToDelete,
+    });
+    throw new HttpsError("unauthenticated", "Permission denied. Only admins can delete users.");
+  }
+
+  const userIdToDelete = data.userIdToDelete;
+
+  // 2. Validate input
+  if (!userIdToDelete || typeof userIdToDelete !== "string") {
+    logger.error("Invalid or missing userIdToDelete in request data.", {userIdToDelete});
+    throw new HttpsError("invalid-argument", "The function must be called with a valid \"userIdToDelete\" string argument.");
+  }
+
+  try {
+    logger.info(`Attempting to delete user: ${userIdToDelete}`);
+
+    // 3. Delete from Firebase Authentication
+    await admin.auth().deleteUser(userIdToDelete);
+    logger.info(`Successfully deleted user ${userIdToDelete} from Firebase Authentication.`);
+
+    // 4. Delete from Firestore 'users' collection
+    await db.collection("users").doc(userIdToDelete).delete();
+    logger.info(`Successfully deleted user ${userIdToDelete} from Firestore 'users' collection.`);
+
+    // 5. Delete associated FCM tokens
+    const fcmTokensQuery = await db.collection("fcmTokens").where("userId", "==", userIdToDelete).get();
+    if (!fcmTokensQuery.empty) {
+      const batch = db.batch();
+      fcmTokensQuery.docs.forEach((doc) => batch.delete(doc.ref));
+      await batch.commit();
+      logger.info(`Deleted ${fcmTokensQuery.size} FCM tokens for user ${userIdToDelete}.`);
+    } else {
+      logger.info(`No FCM tokens found for user ${userIdToDelete}.`);
+    }
+
+    // 6. Consider deleting other user-associated data (e.g., donations, reservations).
+    // This requires careful planning based on data relationships and retention policies.
+    // Example: Delete donations made by this user (if applicable)
+    // const userDonationsQuery = await db.collection("donations").where("donorId", "==", userIdToDelete).get();
+    // if (!userDonationsQuery.empty) {
+    //   const donationBatch = db.batch();
+    //   userDonationsQuery.docs.forEach(doc => donationBatch.delete(doc.ref));
+    //   await donationBatch.commit();
+    //   logger.info(`Deleted ${userDonationsQuery.size} donations for user ${userIdToDelete}.`);
+    // }
+
+    return {message: `User ${userIdToDelete} successfully deleted.`};
+
+  } catch (error: any) {
+    logger.error(`Error deleting user ${userIdToDelete}:`, error);
+    if (error.code === "auth/user-not-found") {
+      // If user not found in Auth, it might have been already deleted or never existed.
+      // We can still attempt to clean up Firestore records.
+      // For this example, we'll throw an error, but this behavior can be adjusted.
+      throw new HttpsError("not-found", `User ${userIdToDelete} not found in Firebase Authentication.`);
+    } else if (error instanceof HttpsError) { // Re-throw HttpsError
+      throw error;
+    } else { // Handle other errors
+      throw new HttpsError("internal", `Failed to delete user ${userIdToDelete}.`, {details: error.message});
+    }
   }
 });

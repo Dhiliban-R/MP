@@ -224,18 +224,45 @@ service cloud.firestore {
       allow read, delete: if isAdmin();
     }
     
-    // Chat messages collection
-    match /chats/{chatId} {
-      // Users involved in the chat can read messages
-      allow read: if isAuthenticated() && 
-                    (resource.data.participantIds.hasAny([request.auth.uid]));
-      
-      // Only verified users can create or update chat messages
-      allow create, update: if canAccessSensitiveFeatures() && 
-                              request.resource.data.senderId == request.auth.uid &&
-                              request.resource.data.participantIds.hasAny([request.auth.uid]);
-      
-      // Only the sender or admin can delete a message
+    // Chat Room rules (Corrected Path)
+    match /chatRooms/{roomId} { // Changed from /chats/{chatId}
+      // Users involved in the chat can read/write room details (e.g. participants, name)
+      // More granular control might be needed for specific fields (e.g. only admin can change room name)
+      allow read: if isAuthenticated() &&
+                    resource.data.participants.hasAny([request.auth.uid]); // Check if current user is a participant
+
+      // Allow authenticated users who are participants to update room details (e.g., last message, unread counts by functions)
+      // Creation is handled by backend typically or specific client functions
+      allow create: if canAccessSensitiveFeatures() &&
+                      request.resource.data.participants.hasAny([request.auth.uid]); // Creator must be a participant
+      allow update: if canAccessSensitiveFeatures() &&
+                      resource.data.participants.hasAny([request.auth.uid]); // Updater must be a participant
+
+      // Only admins or perhaps no one directly (archive instead)
+      allow delete: if isAdmin();
+    }
+
+    // Chat Messages rules (New)
+    match /chatRooms/{roomId}/chatMessages/{messageId} { // Assuming messages are a subcollection of chatRooms
+      // Participants of the chat room can read messages
+      allow read: if isAuthenticated() &&
+                    get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants.hasAny([request.auth.uid]);
+
+      // Authenticated users who are participants in the room can create messages
+      // SenderId must be the current user's UID
+      allow create: if canAccessSensitiveFeatures() &&
+                      request.resource.data.senderId == request.auth.uid &&
+                      get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants.hasAny([request.auth.uid]);
+
+      // Generally, messages are immutable once created.
+      // Updates might be allowed for things like 'readStatus' by recipients, or 'isDeleted' by sender/admin.
+      // For simplicity now, disallow general updates. Specific field updates can be added.
+      allow update: if (canAccessSensitiveFeatures() &&
+                       request.resource.data.senderId == request.auth.uid &&
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isDeleted', 'deletedAt', 'text', 'attachments'])) || // Sender soft-deleting
+                      isAdmin(); // Admins can update for moderation
+
+      // Only sender or admin can delete (soft delete is preferred by updating a flag)
       allow delete: if isAdmin() || 
                       (resource.data.senderId == request.auth.uid && canAccessSensitiveFeatures());
     }
