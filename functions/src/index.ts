@@ -831,6 +831,59 @@ export const sendDonationStatusEmail = onDocumentUpdated("donations/{donationId}
   }
 });
 
+// Function to send FCM notification when a new chat notification document is created
+export const onNewChatNotification = onDocumentCreated("chatNotifications/{notificationId}", async (event) => {
+  const snapshot = event.data;
+  if (!snapshot) {
+    logger.info("No data associated with the chat notification event.");
+    return;
+  }
+
+  const chatNotificationData = snapshot.data();
+  const notificationId = event.params.notificationId; // Correctly get notificationId from event.params
+
+  logger.info(`Processing new chat notification: ${notificationId}`, {chatNotificationData});
+
+  const {recipientId, senderName, text, roomId, messageId, senderId} = chatNotificationData;
+
+  if (!recipientId) {
+    logger.error("Recipient ID missing in chat notification data.", {notificationId});
+    return;
+  }
+
+  // Prevent self-notification if senderId is the same as recipientId (e.g. system messages in a user's own notes)
+  // This check might need adjustment based on how chatNotifications are created for system vs user messages
+  if (senderId === recipientId) {
+    logger.info(`Skipping self-notification for recipient ${recipientId} on notification ${notificationId}.`);
+    return;
+  }
+
+  try {
+    const tokens = await getUserFcmTokens(recipientId);
+
+    if (tokens.length > 0) {
+      const title = `New message from ${senderName || "Someone"}`;
+      const body = text || "You have a new message."; // Use message text as preview or a default
+      const dataPayload = {
+        type: "new_chat_message",
+        roomId: roomId || "", // Ensure roomId is a string
+        messageId: messageId || "", // Ensure messageId is a string
+        link: `/chat?room=${roomId || ""}`, // Construct a link to the chat room
+        // Potentially add senderId, notificationId etc. if useful for client
+      };
+
+      logger.info(`Attempting to send chat notification to recipient ${recipientId} with ${tokens.length} tokens.`, {title, body, dataPayload});
+      await sendNotificationToTokens(tokens, title, body, dataPayload);
+      logger.info(`Successfully sent chat notification for notificationId: ${notificationId} to recipient ${recipientId}`);
+    } else {
+      logger.info(`No active FCM tokens found for recipient ${recipientId}. Notification ${notificationId} not sent via FCM.`);
+    }
+  } catch (error) {
+    logger.error(`Error processing chat notification ${notificationId} for recipient ${recipientId}:`, error);
+  }
+});
+
+
 // Callable function to delete a user account
 export const deleteUserAccount = onCall(async (request) => {
   // Destructure data and auth from the request object for v2 onCall
