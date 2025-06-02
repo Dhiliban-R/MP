@@ -169,7 +169,7 @@ export async function middleware(request: NextRequest) {
 
   // TEMPORARILY DISABLE AUTH MIDDLEWARE FOR URGENT SUBMISSION
   // TODO: Re-enable after submission
-  return response;
+  // return response; // Auth middleware re-enabled
 
   // Check for auth token in cookies
   const authCookie = request.cookies.get('auth_token')?.value;

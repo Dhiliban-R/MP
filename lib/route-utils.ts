@@ -10,7 +10,6 @@ export const PUBLIC_ROUTES = [
   '/about',
   '/help',
   '/contact',
-  '/dashboard', // Temporary fix - allow dashboard access
 ];
 
 // API routes that don't require email verification

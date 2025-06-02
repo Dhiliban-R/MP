@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { useDonations } from '@/hooks/use-donations'; // Import the hook
 import { Donation, DonationStatus } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,57 +9,40 @@ import { Input } from '@/components/ui/input';
 import { Loader2, Package, MapPin, Calendar, Search } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner'; // Using sonner directly as use-toast might be custom
 import { MapView } from '@/components/ui/map-view';
 import { MainLayout } from '@/components/layout/main-layout';
 
 export default function PublicDonationsPage() {
-  const [donations, setDonations] = useState<Donation[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    donations: allFetchedDonations,
+    loading: pageLoading,
+    error: pageError
+  } = useDonations({ realtime: true, userSpecific: null });
+
+  const [filteredDonations, setFilteredDonations] = useState<Donation[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
 
   useEffect(() => {
-    const fetchDonations = async () => {
-      setLoading(true);
-      try {
-        const q = query(
-          collection(db, 'donations'),
-          where('status', '==', DonationStatus.ACTIVE),
-          orderBy('createdAt', 'desc')
-        );
-        const querySnapshot = await getDocs(q);
-        const fetchedDonations: Donation[] = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate(),
-          updatedAt: doc.data().updatedAt?.toDate(),
-          expiryDate: doc.data().expiryDate?.toDate(),
-        })) as Donation[];
-        setDonations(fetchedDonations);
-      } catch (error) {
-        console.error('Error fetching public donations:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to load available donations.',
-          variant: 'destructive',
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (pageError) {
+      toast.error(pageError || 'Failed to load donations.');
+    }
+  }, [pageError]);
 
-    fetchDonations();
-  }, []);
+  useEffect(() => {
+    let currentDonations = allFetchedDonations || [];
 
-  const filteredDonations = donations.filter(donation => {
-    const matchesSearch = searchTerm === '' || 
-                          donation.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          donation.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          donation.donorName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = filterCategory === 'all' || donation.category === filterCategory;
-    return matchesSearch && matchesCategory;
-  });
+    const newFilteredDonations = currentDonations.filter(donation => {
+      const matchesSearch = searchTerm === '' ||
+                            donation.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            (donation.description && donation.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                            (donation.donorName && donation.donorName.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesCategory = filterCategory === 'all' || donation.category === filterCategory;
+      return matchesSearch && matchesCategory;
+    });
+    setFilteredDonations(newFilteredDonations);
+  }, [allFetchedDonations, searchTerm, filterCategory]);
 
   const foodCategories = [
     'Fresh Produce', 'Bakery Items', 'Dairy Products', 'Canned Goods', 
@@ -68,12 +50,27 @@ export default function PublicDonationsPage() {
     'Snacks', 'Baby Food', 'Other'
   ];
 
-  if (loading) {
+  // Display loading state from the hook
+  if (pageLoading && filteredDonations.length === 0) { // Show loading if truly loading or no data yet
     return (
       <MainLayout>
         <div className="flex items-center justify-center min-h-screen">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <span className="ml-2">Loading donations...</span>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  // Display error state from the hook
+  if (pageError && !pageLoading && filteredDonations.length === 0) { // Show error if error occurred and no data
+    return (
+      <MainLayout>
+        <div className="flex flex-col items-center justify-center min-h-screen">
+          <Package className="h-12 w-12 text-destructive mb-4" />
+          <h2 className="text-xl font-semibold text-destructive mb-2">Error Loading Donations</h2>
+          <p className="text-muted-foreground mb-4">{pageError}</p>
+          <Button onClick={() => window.location.reload()}>Try Again</Button>
         </div>
       </MainLayout>
     );
@@ -145,11 +142,11 @@ export default function PublicDonationsPage() {
                       </div>
                       <div className="flex items-center">
                         <Calendar className="h-4 w-4 mr-2 text-primary" />
-                        <span>Expires: {format(donation.expiryDate, 'PPP')}</span>
+                        <span>Expires: {donation.expiryDate ? format(new Date(donation.expiryDate), 'PPP') : 'N/A'}</span>
                       </div>
                       <div className="flex items-center col-span-2">
                         <MapPin className="h-4 w-4 mr-2 text-primary" />
-                        <span>{donation.pickupAddress.city}, {donation.pickupAddress.state}</span>
+                        <span>{donation.pickupAddress?.city || 'Unknown City'}, {donation.pickupAddress?.state || 'Unknown State'}</span>
                       </div>
                     </div>
                   </div>
@@ -170,7 +167,7 @@ export default function PublicDonationsPage() {
               <CardDescription>Explore available donations on the map.</CardDescription>
             </CardHeader>
             <CardContent className="h-[400px] p-0">
-              <MapView donations={filteredDonations} height="100%" />
+              <MapView donations={filteredDonations || []} height="100%" />
             </CardContent>
           </Card>
         </div>

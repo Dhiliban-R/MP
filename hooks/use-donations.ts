@@ -40,6 +40,9 @@ export const useDonations = (options: UseDonationsOptions = {}): UseDonationsRet
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Import for real-time subscription
+  const { subscribeToAvailableDonations } = require('@/lib/donation-service');
+
   const fetchDonations = useCallback(async () => {
     if (!user && userSpecific) {
       setDonations([]);
@@ -152,8 +155,28 @@ export const useDonations = (options: UseDonationsOptions = {}): UseDonationsRet
   }, []);
 
   useEffect(() => {
-    fetchDonations();
-  }, [fetchDonations]);
+    setLoading(true);
+    setError(null);
+
+    if (realtime && userSpecific === null) {
+      // Real-time subscription for available donations
+      const unsubscribe = subscribeToAvailableDonations((fetchedDonations: Donation[]) => {
+        setDonations(fetchedDonations);
+        setLoading(false);
+      }, (err: Error) => {
+        console.error('Error subscribing to donations:', err);
+        setError(err.message || 'Failed to subscribe to real-time updates');
+        setLoading(false);
+        toast.error('Failed to load real-time donations');
+      });
+
+      // Cleanup subscription on unmount
+      return () => unsubscribe();
+    } else {
+      // Standard fetch for other cases
+      fetchDonations();
+    }
+  }, [fetchDonations, realtime, userSpecific, subscribeToAvailableDonations]);
 
   return {
     donations,
