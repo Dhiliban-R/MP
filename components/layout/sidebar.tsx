@@ -164,7 +164,7 @@ export function Sidebar({ className }: SidebarProps) {
 
     // If user is not logged in, show default items and dashboards
     if (!user) {
-      return [...dashboardSection, ...defaultNavItems];
+      return defaultNavItems;
     }
 
     // Role-specific navigation items

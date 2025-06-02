@@ -525,7 +525,10 @@ export const checkAndUpdateExpiredDonations = async () => {
 };
 
 // Subscribe to real-time updates for available donations
-export const subscribeToAvailableDonations = (callback: (donations: Donation[]) => void) => {
+export const subscribeToAvailableDonations = (
+  onData: (donations: Donation[]) => void,
+  onError: (error: Error) => void
+) => {
   const q = query(
     collection(db, 'donations'),
     where('status', '==', DonationStatus.ACTIVE),
@@ -547,11 +550,11 @@ export const subscribeToAvailableDonations = (callback: (donations: Donation[]) 
           expiryDate: (data.expiryDate as Timestamp)?.toDate() || new Date(),
         } as Donation);
       });
-      callback(donations);
+      onData(donations);
     },
     (error) => {
       console.error('Error subscribing to available donations:', error);
-      callback([]);
+      onError(error); // Call the provided error handler
     }
   );
 
