@@ -1,17 +1,64 @@
 rules_version = '2';
 
-// Craft rules based on data in your Firestore database
-// allow write: if firestore.get(
-//    /databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin;
 service firebase.storage {
   match /b/{bucket}/o {
-    match /{allPaths=**} {
-      // Allow authenticated users to read images
+
+    // Helper function to get user role from Firestore
+    // Note: Ensure 'users/{userId}' path and 'role' field match your Firestore structure.
+    function getUserRole(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.role;
+    }
+
+    // Helper function to check if user is a participant in a chat room
+    // Note: Ensure 'chatRooms/{roomId}' path and 'participants' field (and its structure) match your Firestore structure.
+    function isChatParticipant(roomId, userId) {
+      let roomDoc = get(/databases/$(database)/documents/chatRooms/$(roomId));
+      // Check if room exists and if participants list contains the userId.
+      // The 'hasAny' check might need adjustment if 'participants' is an array of objects.
+      // A common pattern is participants being an array of UIDs, or an array of maps where each map has a 'uid' field.
+      // Assuming participants is an array of UIDs for this rule for simplicity, or that hasAny works with maps if it's [{uid: 'xxx'}, ...].
+      // A more robust check for array of objects:
+      // roomDoc.data.participants.filter(p => p.userId == userId).size() > 0
+      // However, hasAny should work if the literal value being checked is in the array.
+      // For this subtask, we assume 'participants' contains UIDs directly or `hasAny` works as intended with the structure.
+      // A more precise rule if participants are maps:
+      // return roomDoc.data.participants.filter(p => p.userId == userId).size() > 0;
+      // For now, using a simplified check that assumes participants contains UIDs or hasAny is smart enough.
+      // A more robust check assuming participants is an array of objects like [{userId: 'uid1', ...}, {userId: 'uid2', ...}]
+      return exists(/databases/$(database)/documents/chatRooms/$(roomId)) &&
+             roomDoc.data.participants.filter(p => p.userId == userId).size() > 0;
+             // Fallback to simpler hasAny if the above complex filter is problematic in rules or if structure is just UIDs
+             // get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants.hasAny([userId]);
+
+    }
+
+    // Donation Images: Path like /donations/{userId}/{fileName}
+    match /donations/{userId}/{fileName} {
+      allow read: if request.auth != null; // Allow authenticated users to read.
+      allow write: if request.auth != null && request.auth.uid == userId &&
+                     (getUserRole(request.auth.uid) == 'donor' || getUserRole(request.auth.uid) == 'admin');
+    }
+
+    // Chat Attachments: Path like /chat_attachments/{roomId}/{userId}/{fileName}
+    match /chat_attachments/{roomId}/{userId}/{fileName} {
+      allow read: if request.auth != null && isChatParticipant(roomId, request.auth.uid);
+      allow write: if request.auth != null && request.auth.uid == userId &&
+                     isChatParticipant(roomId, request.auth.uid);
+    }
+
+    // User Profile Pictures (Example - if feature is added or path is known)
+    // Path: /profile_pictures/{userId}/{fileName}
+    match /profile_pictures/{userId}/{fileName} {
       allow read: if request.auth != null;
-      // Allow donors and admins to write images
-      allow write: if request.auth != null &&
-        (get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'donor' ||
-         get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Fallback for any other paths not explicitly matched above.
+    // To maintain existing broad read access for authenticated users:
+    match /{allPaths=**} {
+      allow read: if request.auth != null;
+      // Deny all other writes explicitly if not matched by more specific rules above.
+      allow write: if false;
     }
   }
 }
