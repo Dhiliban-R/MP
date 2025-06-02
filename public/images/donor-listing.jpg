@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Donor Listing</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .clouds {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 25% 25%, rgba(255,255,255,0.1) 12%, transparent 13%),
+                radial-gradient(circle at 75% 35%, rgba(255,255,255,0.08) 15%, transparent 16%),
+                radial-gradient(circle at 45% 75%, rgba(255,255,255,0.12) 10%, transparent 11%);
+            animation: float 15s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateX(0px); }
+            50% { transform: translateX(-15px); }
+        }
+        
+        .content {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 50px 40px;
+            border-radius: 20px;
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            max-width: 600px;
+            z-index: 2;
+            position: relative;
+        }
+        
+        .icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+            display: block;
+        }
+        
+        h1 {
+            margin: 0 0 20px 0;
+            font-size: 2.8em;
+            font-weight: 700;
+            background: linear-gradient(45deg, #ffffff, #f0fdf4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .subtitle {
+            font-size: 1.3em;
+            margin: 0 0 30px 0;
+            opacity: 0.9;
+            font-weight: 400;
+            line-height: 1.5;
+        }
+        
+        .steps {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            margin-top: 30px;
+        }
+        
+        .step {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            text-align: left;
+            backdrop-filter: blur(10px);
+        }
+        
+        .step-number {
+            background: rgba(255, 255, 255, 0.2);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 20px;
+            flex-shrink: 0;
+        }
+        
+        .step-text {
+            font-size: 1.1em;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="clouds"></div>
+    <div class="content">
+        <span class="icon">🏪</span>
+        <h1>Donors List Surplus Food</h1>
+        <p class="subtitle">Businesses and individuals can easily create listings for their surplus food</p>
+        <div class="steps">
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-text">Provide food details and quantity</div>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-text">Set expiry date and pickup location</div>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-text">Publish listing for recipients to see</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

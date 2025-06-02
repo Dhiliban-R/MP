@@ -1,0 +1,151 @@
+// Firestore Security Rules for FDMS
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isSignedIn() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function isDonor() {
+      return isSignedIn() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'donor';
+    }
+    
+    function isRecipient() {
+      return isSignedIn() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'recipient';
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    function isDonationOwner(donationId) {
+      return isSignedIn() && 
+             get(/databases/$(database)/documents/donations/$(donationId)).data.donorId == request.auth.uid;
+    }
+    
+    function isReservationOwner(reservationId) {
+      return isSignedIn() && 
+             get(/databases/$(database)/documents/reservations/$(reservationId)).data.recipientId == request.auth.uid;
+    }
+    
+    // Users collection rules
+    match /users/{userId} {
+      // Anyone can create their own user document during registration
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      
+      // Users can read and update their own data, admins can read and update any user
+      allow read: if isOwner(userId) || isAdmin();
+      allow update: if isOwner(userId) || isAdmin();
+      
+      // Only admins can delete users
+      allow delete: if isAdmin();
+      
+      // Admins can read and write all user data
+      allow read, write: if request.auth != null && request.auth.token.role == 'admin';
+    }
+    
+    // Donations collection rules
+    match /donations/{donationId} {
+      // Only donors and admins can create donations
+      allow create: if isDonor() || isAdmin();
+      
+      // Everyone signed in can read donations
+      allow read: if isSignedIn();
+      
+      // Only the donor who created the donation or admins can update/delete it
+      allow update: if isDonationOwner(donationId) || isAdmin();
+      allow delete: if isDonationOwner(donationId) || isAdmin();
+      
+      // Admins can write to all donation documents
+      allow write: if request.auth != null && (request.auth.token.role == 'donor' || request.auth.token.role == 'admin');
+    }
+    
+    // Reservations collection rules
+    match /reservations/{reservationId} {
+      // Only recipients and admins can create reservations
+      allow create: if isRecipient() || isAdmin();
+      
+      // Donor of the donation and the recipient who made the reservation can read it, admins can read all
+      allow read: if isReservationOwner(reservationId) || 
+                     resource.data.donorId == request.auth.uid || 
+                     isAdmin();
+      
+      // The recipient who made the reservation can update it, donors can update status, admins can update all
+      allow update: if isReservationOwner(reservationId) || 
+                      resource.data.donorId == request.auth.uid || 
+                      isAdmin();
+      
+      // Only admins can delete reservations
+      allow delete: if isAdmin();
+    }
+    
+    // Notifications collection rules
+    match /notifications/{notificationId} {
+      // Only admins can create notifications for other users
+      // Users can only read their own notifications
+      allow create: if isAdmin();
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      
+      // Users can mark their own notifications as read
+      allow update: if isSignedIn() && 
+                      resource.data.userId == request.auth.uid && 
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      
+      // Only admins can delete notifications
+      allow delete: if isAdmin();
+    }
+    
+    // Analytics collection rules
+    match /analytics/{docId} {
+      // Only admins can write to analytics
+      // All authenticated users can read analytics
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+  }
+}
+
+// Storage Rules
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Default deny all
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+    
+    // Donation images
+    match /donations/{donationId}/{imageId} {
+      // Donors can upload images for their own donations
+      // Everyone can read donation images
+      allow read: if isSignedIn();
+      allow create: if isDonor() && 
+                      request.auth.uid == get(/databases/$(database)/documents/donations/$(donationId)).data.donorId;
+      
+      // Only the donor or admin can delete images
+      allow delete: if isDonor() && 
+                      request.auth.uid == get(/databases/$(database)/documents/donations/$(donationId)).data.donorId || 
+                    isAdmin();
+    }
+    
+    // User profile images
+    match /users/{userId}/profile.jpg {
+      // Users can upload and update their own profile image
+      // Everyone can view profile images
+      allow read: if isSignedIn();
+      allow create, update: if request.auth.uid == userId;
+      
+      // Only the user or admin can delete
+      allow delete: if request.auth.uid == userId || isAdmin();
+    }
+  }
+}

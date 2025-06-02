@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Impact and Results</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 50%, #92400e 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .clouds {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 30% 25%, rgba(255,255,255,0.1) 20%, transparent 21%),
+                radial-gradient(circle at 70% 60%, rgba(255,255,255,0.08) 25%, transparent 26%),
+                radial-gradient(circle at 50% 90%, rgba(255,255,255,0.12) 18%, transparent 19%);
+            animation: float 20s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) scale(1); }
+            50% { transform: translateY(-30px) scale(1.02); }
+        }
+        
+        .content {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 50px 40px;
+            border-radius: 20px;
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            max-width: 700px;
+            z-index: 2;
+            position: relative;
+        }
+        
+        .icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+            display: block;
+        }
+        
+        h1 {
+            margin: 0 0 20px 0;
+            font-size: 2.8em;
+            font-weight: 700;
+            background: linear-gradient(45deg, #ffffff, #fef3c7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .subtitle {
+            font-size: 1.3em;
+            margin: 0 0 30px 0;
+            opacity: 0.9;
+            font-weight: 400;
+            line-height: 1.5;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 25px;
+            margin: 40px 0;
+        }
+        
+        .stat {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px 20px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .stat-icon {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+        }
+        
+        .stat-number {
+            font-size: 2.2em;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #fbbf24;
+        }
+        
+        .stat-label {
+            font-size: 1.1em;
+            font-weight: 500;
+            opacity: 0.9;
+        }
+        
+        .benefits {
+            margin-top: 30px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .benefit {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            text-align: left;
+        }
+        
+        .benefit-icon {
+            font-size: 1.8em;
+            margin-right: 12px;
+        }
+        
+        .benefit-text {
+            font-size: 1.1em;
+            font-weight: 500;
+        }
+        
+        @media (max-width: 600px) {
+            .benefits {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="clouds"></div>
+    <div class="content">
+        <span class="icon">📈</span>
+        <h1>Measuring Impact</h1>
+        <p class="subtitle">Track the positive difference you're making in your community</p>
+        
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-icon">🍽️</div>
+                <div class="stat-number">10K+</div>
+                <div class="stat-label">Meals Saved</div>
+            </div>
+            <div class="stat">
+                <div class="stat-icon">🌍</div>
+                <div class="stat-number">5T</div>
+                <div class="stat-label">CO₂ Reduced</div>
+            </div>
+            <div class="stat">
+                <div class="stat-icon">👥</div>
+                <div class="stat-number">500+</div>
+                <div class="stat-label">People Fed</div>
+            </div>
+            <div class="stat">
+                <div class="stat-icon">💰</div>
+                <div class="stat-number">$25K</div>
+                <div class="stat-label">Value Saved</div>
+            </div>
+        </div>
+        
+        <div class="benefits">
+            <div class="benefit">
+                <span class="benefit-icon">📊</span>
+                <span class="benefit-text">Real-time Analytics</span>
+            </div>
+            <div class="benefit">
+                <span class="benefit-icon">🏆</span>
+                <span class="benefit-text">Achievement Badges</span>
+            </div>
+            <div class="benefit">
+                <span class="benefit-icon">📋</span>
+                <span class="benefit-text">Impact Reports</span>
+            </div>
+            <div class="benefit">
+                <span class="benefit-icon">🎯</span>
+                <span class="benefit-text">Goal Tracking</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,243 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions for authentication and roles
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function isDonor() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'donor';
+    }
+    
+    function isRecipient() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'recipient';
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Email verification helper functions
+    function isEmailVerified() {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.emailVerified == true;
+    }
+    
+    // Grace period is 24 hours after account creation
+    function isInGracePeriod() {
+      let user = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let creationTime = user.createdAt != null ? user.createdAt : (user.metadata != null ? user.metadata.creationTime : null);
+      
+      // If creation time is missing, default to no grace period
+      if (creationTime == null) {
+        return false;
+      }
+      
+      // Convert to milliseconds and check if within 24 hours
+      let creationTimestamp = creationTime is timestamp ? 
+                             creationTime.toMillis() : 
+                             timestamp(creationTime).toMillis();
+      let gracePeriodMillis = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+      
+      return (request.time.toMillis() - creationTimestamp) < gracePeriodMillis;
+    }
+    
+    // Can access based on verification status or grace period
+    function canAccessBasicFeatures() {
+      return isAuthenticated() && (isEmailVerified() || isInGracePeriod() || isAdmin());
+    }
+    
+    // Stricter access for sensitive operations - always requires verification
+    function canAccessSensitiveFeatures() {
+      return isAuthenticated() && (isEmailVerified() || isAdmin());
+    }
+    
+    function isValidDonation() {
+      return request.resource.data.title is string &&
+             request.resource.data.title.size() >= 2 &&
+             request.resource.data.title.size() <= 100 &&
+             request.resource.data.description is string &&
+             request.resource.data.description.size() >= 10 &&
+             request.resource.data.description.size() <= 500 &&
+             request.resource.data.quantity is number &&
+             request.resource.data.quantity >= 1 &&
+             request.resource.data.quantity <= 1000 &&
+             request.resource.data.expiryDate is timestamp &&
+             request.resource.data.expiryDate > request.time;
+    }
+    
+    function isValidReservation() {
+      return request.resource.data.donationId is string &&
+             request.resource.data.recipientId is string &&
+             request.resource.data.recipientName is string &&
+             request.resource.data.status in ['pending', 'confirmed', 'completed', 'cancelled'];
+    }
+    
+    // User rules
+    match /users/{userId} {
+      // Anyone authenticated can read basic user profiles
+      allow read: if isAuthenticated();
+      
+      // Users can only edit their own profiles, admins can edit any profile
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      
+      // Allow users to update their own profile regardless of verification status
+      // This is important so they can complete profile setup and update verification status
+      allow update: if isOwner(userId) || isAdmin();
+      
+      // Only admins can delete user accounts
+      allow delete: if isAdmin();
+    }
+    
+    // Donation rules
+    match /donations/{donationId} {
+      // Anyone authenticated can read donations, even during grace period
+      allow read: if canAccessBasicFeatures();
+      
+      // Only verified donors and admins can create donations with validation
+      allow create: if canAccessSensitiveFeatures() && 
+                      (isDonor() || isAdmin()) && 
+                      isValidDonation() && 
+                      request.resource.data.donorId == request.auth.uid;
+      
+      // Only the verified donor who created the donation or an admin can update it
+      allow update: if (
+                      (
+                        resource.data.donorId == request.auth.uid && 
+                        canAccessSensitiveFeatures() && 
+                        isDonor()
+                      ) || 
+                      isAdmin()
+                    ) && 
+                    (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['donorId', 'createdAt']));
+      
+      // Only the verified donor who created the donation or an admin can delete it
+      // Cannot delete if there are active reservations
+      allow delete: if (
+                      (
+                        resource.data.donorId == request.auth.uid && 
+                        canAccessSensitiveFeatures() && 
+                        isDonor()
+                      ) || 
+                      isAdmin()
+                    ) && 
+                    (resource.data.status != 'reserved');
+    }
+    
+    // Reservation rules
+    match /reservations/{reservationId} {
+      // Only the recipient who created the reservation, the donor of the associated donation, or an admin can read reservations
+      allow read: if (
+                    resource.data.recipientId == request.auth.uid && canAccessBasicFeatures()
+                  ) ||
+                  (
+                    get(/databases/$(database)/documents/donations/$(resource.data.donationId)).data.donorId == request.auth.uid && 
+                    canAccessBasicFeatures()
+                  ) ||
+                  isAdmin();
+      
+      // Only verified recipients can create reservations with validation
+      allow create: if isRecipient() && 
+                    canAccessSensitiveFeatures() &&
+                    isValidReservation() && 
+                    request.resource.data.recipientId == request.auth.uid &&
+                    exists(/databases/$(database)/documents/donations/$(request.resource.data.donationId)) &&
+                    get(/databases/$(database)/documents/donations/$(request.resource.data.donationId)).data.status == 'active';
+      
+      // Only the verified recipient who created the reservation, the verified donor of the associated donation, or an admin can update it
+      allow update: if (
+                    (
+                      resource.data.recipientId == request.auth.uid && 
+                      canAccessSensitiveFeatures() && 
+                      isRecipient()
+                    ) || 
+                    (
+                      get(/databases/$(database)/documents/donations/$(resource.data.donationId)).data.donorId == request.auth.uid && 
+                      canAccessSensitiveFeatures() && 
+                      isDonor()
+                    ) || 
+                    isAdmin()
+                  ) &&
+                  (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['donationId', 'recipientId', 'createdAt']));
+      
+      // Only admins or the verified recipient who created the reservation can delete it
+      allow delete: if isAdmin() || (resource.data.recipientId == request.auth.uid && canAccessSensitiveFeatures());
+    }
+    
+    // Notification rules
+    match /notifications/{notificationId} {
+      // Users can only read their own notifications - allow even during grace period
+      allow read: if resource.data.userId == request.auth.uid && isAuthenticated();
+      
+      // Only the system (via Cloud Functions) and admins can create notifications
+      allow create: if isAdmin() || 
+                      (request.resource.data.userId is string && 
+                       exists(/databases/$(database)/documents/users/$(request.resource.data.userId)));
+      
+      // Users can only update (mark as read) their own notifications - allow even during grace period
+      allow update: if resource.data.userId == request.auth.uid && 
+                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']) &&
+                     isAuthenticated();
+      
+      // Only admins or the user who owns the notification can delete it
+      allow delete: if isAdmin() || (resource.data.userId == request.auth.uid && canAccessBasicFeatures());
+    }
+    
+    // Analytics rules
+    match /analytics/{docId} {
+      // Only verified users or users in grace period can read analytics
+      allow read: if canAccessBasicFeatures();
+      
+      // Only admins can write to analytics
+      allow write: if isAdmin();
+    }
+    
+    // FCM tokens collection
+    match /fcmTokens/{tokenId} {
+      // Users can only read and write their own FCM tokens - allow even during grace period
+      allow read, write: if isAuthenticated() && 
+                          (request.auth.uid == resource.data.userId || 
+                           (request.resource != null && request.resource.data.userId == request.auth.uid));
+      
+      // Admins can read all FCM tokens
+      allow read: if isAdmin();
+    }
+    
+    // User feedback collection
+    match /feedback/{feedbackId} {
+      // Users can create feedback - allow even during grace period
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      
+      // Users can only read their own feedback - allow even during grace period
+      allow read: if resource.data.userId == request.auth.uid && isAuthenticated();
+      
+      // Only admins can read all feedback and delete feedback
+      allow read, delete: if isAdmin();
+    }
+    
+    // Chat messages collection
+    match /chats/{chatId} {
+      // Users involved in the chat can read messages
+      allow read: if isAuthenticated() && 
+                    (resource.data.participantIds.hasAny([request.auth.uid]));
+      
+      // Only verified users can create or update chat messages
+      allow create, update: if canAccessSensitiveFeatures() && 
+                              request.resource.data.senderId == request.auth.uid &&
+                              request.resource.data.participantIds.hasAny([request.auth.uid]);
+      
+      // Only the sender or admin can delete a message
+      allow delete: if isAdmin() || 
+                      (resource.data.senderId == request.auth.uid && canAccessSensitiveFeatures());
+    }
+  }
+}

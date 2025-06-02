@@ -1,0 +1,17 @@
+rules_version = '2';
+
+// Craft rules based on data in your Firestore database
+// allow write: if firestore.get(
+//    /databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin;
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      // Allow authenticated users to read images
+      allow read: if request.auth != null;
+      // Allow donors and admins to write images
+      allow write: if request.auth != null &&
+        (get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'donor' ||
+         get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin');
+    }
+  }
+}

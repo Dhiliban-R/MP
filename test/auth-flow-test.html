@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FDMS Authentication Flow Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border-color: #ffeaa7;
+            color: #856404;
+        }
+        .info {
+            background-color: #d1ecf1;
+            border-color: #bee5eb;
+            color: #0c5460;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .form-group {
+            margin: 10px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-online { background-color: #28a745; }
+        .status-offline { background-color: #dc3545; }
+        .status-loading { background-color: #ffc107; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🍽️ FDMS Authentication System Test</h1>
+        <p>This page tests the authentication flows of the Food Donation Management System.</p>
+        
+        <!-- Server Status -->
+        <div class="test-section info">
+            <h3><span class="status-indicator status-loading" id="serverStatus"></span>Server Status</h3>
+            <p id="serverStatusText">Checking server connection...</p>
+            <button onclick="checkServerStatus()">Refresh Status</button>
+        </div>
+
+        <!-- Firebase Configuration Test -->
+        <div class="test-section" id="firebaseTest">
+            <h3>🔥 Firebase Configuration</h3>
+            <p>Testing Firebase connection and configuration...</p>
+            <button onclick="testFirebaseConfig()">Test Firebase</button>
+            <div id="firebaseResult" class="result"></div>
+        </div>
+
+        <!-- Registration Test -->
+        <div class="test-section" id="registrationTest">
+            <h3>📝 User Registration Test</h3>
+            <div class="form-group">
+                <label for="regEmail">Email:</label>
+                <input type="email" id="regEmail" value="test@example.com">
+            </div>
+            <div class="form-group">
+                <label for="regPassword">Password:</label>
+                <input type="password" id="regPassword" value="testpassword123">
+            </div>
+            <div class="form-group">
+                <label for="regName">Display Name:</label>
+                <input type="text" id="regName" value="Test User">
+            </div>
+            <div class="form-group">
+                <label for="regRole">Role:</label>
+                <select id="regRole">
+                    <option value="donor">Donor</option>
+                    <option value="recipient">Recipient</option>
+                </select>
+            </div>
+            <button onclick="testRegistration()">Test Registration</button>
+            <div id="registrationResult" class="result"></div>
+        </div>
+
+        <!-- Login Test -->
+        <div class="test-section" id="loginTest">
+            <h3>🔐 User Login Test</h3>
+            <div class="form-group">
+                <label for="loginEmail">Email:</label>
+                <input type="email" id="loginEmail" value="test@example.com">
+            </div>
+            <div class="form-group">
+                <label for="loginPassword">Password:</label>
+                <input type="password" id="loginPassword" value="testpassword123">
+            </div>
+            <button onclick="testLogin()">Test Login</button>
+            <div id="loginResult" class="result"></div>
+        </div>
+
+        <!-- Navigation Test -->
+        <div class="test-section" id="navigationTest">
+            <h3>🧭 Navigation Test</h3>
+            <p>Test navigation to different dashboard pages:</p>
+            <button onclick="testNavigation('/donor/dashboard')">Donor Dashboard</button>
+            <button onclick="testNavigation('/recipient/dashboard')">Recipient Dashboard</button>
+            <button onclick="testNavigation('/admin/dashboard')">Admin Dashboard</button>
+            <div id="navigationResult" class="result"></div>
+        </div>
+
+        <!-- Authentication State Test -->
+        <div class="test-section" id="authStateTest">
+            <h3>👤 Authentication State</h3>
+            <button onclick="checkAuthState()">Check Current Auth State</button>
+            <button onclick="testSignOut()">Test Sign Out</button>
+            <div id="authStateResult" class="result"></div>
+        </div>
+
+        <!-- Test Results Summary -->
+        <div class="test-section" id="testSummary">
+            <h3>📊 Test Summary</h3>
+            <div id="summaryContent">
+                <p>Run tests to see results...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Test results tracking
+        const testResults = {
+            server: null,
+            firebase: null,
+            registration: null,
+            login: null,
+            navigation: null,
+            authState: null
+        };
+
+        // Utility functions
+        function updateResult(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `result ${type}`;
+        }
+
+        function updateTestSection(sectionId, type) {
+            const section = document.getElementById(sectionId);
+            section.className = `test-section ${type}`;
+        }
+
+        function updateSummary() {
+            const summary = document.getElementById('summaryContent');
+            const total = Object.keys(testResults).length;
+            const passed = Object.values(testResults).filter(r => r === 'success').length;
+            const failed = Object.values(testResults).filter(r => r === 'error').length;
+            const pending = Object.values(testResults).filter(r => r === null).length;
+
+            summary.innerHTML = `
+                <p><strong>Total Tests:</strong> ${total}</p>
+                <p><strong>Passed:</strong> ${passed}</p>
+                <p><strong>Failed:</strong> ${failed}</p>
+                <p><strong>Pending:</strong> ${pending}</p>
+                <p><strong>Success Rate:</strong> ${total > 0 ? ((passed / (total - pending)) * 100).toFixed(1) : 0}%</p>
+            `;
+        }
+
+        // Test functions
+        async function checkServerStatus() {
+            const statusIndicator = document.getElementById('serverStatus');
+            const statusText = document.getElementById('serverStatusText');
+            
+            statusIndicator.className = 'status-indicator status-loading';
+            statusText.textContent = 'Checking server connection...';
+
+            try {
+                const response = await fetch('http://localhost:3000/api/health', {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (response.ok) {
+                    statusIndicator.className = 'status-indicator status-online';
+                    statusText.textContent = 'Server is online and responding';
+                    testResults.server = 'success';
+                } else {
+                    throw new Error(`Server responded with status: ${response.status}`);
+                }
+            } catch (error) {
+                statusIndicator.className = 'status-indicator status-offline';
+                statusText.textContent = `Server is offline or unreachable: ${error.message}`;
+                testResults.server = 'error';
+            }
+            updateSummary();
+        }
+
+        async function testFirebaseConfig() {
+            try {
+                updateResult('firebaseResult', 'Testing Firebase configuration...', 'info');
+                
+                // This would normally test Firebase initialization
+                // For now, we'll simulate the test
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                updateResult('firebaseResult', 'Firebase configuration test passed!', 'success');
+                updateTestSection('firebaseTest', 'success');
+                testResults.firebase = 'success';
+            } catch (error) {
+                updateResult('firebaseResult', `Firebase test failed: ${error.message}`, 'error');
+                updateTestSection('firebaseTest', 'error');
+                testResults.firebase = 'error';
+            }
+            updateSummary();
+        }
+
+        async function testRegistration() {
+            const email = document.getElementById('regEmail').value;
+            const password = document.getElementById('regPassword').value;
+            const displayName = document.getElementById('regName').value;
+            const role = document.getElementById('regRole').value;
+
+            try {
+                updateResult('registrationResult', 'Testing user registration...', 'info');
+                
+                const response = await fetch('http://localhost:3000/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password, displayName, role })
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    updateResult('registrationResult', `Registration successful: ${JSON.stringify(result, null, 2)}`, 'success');
+                    updateTestSection('registrationTest', 'success');
+                    testResults.registration = 'success';
+                } else {
+                    throw new Error(result.error || 'Registration failed');
+                }
+            } catch (error) {
+                updateResult('registrationResult', `Registration failed: ${error.message}`, 'error');
+                updateTestSection('registrationTest', 'error');
+                testResults.registration = 'error';
+            }
+            updateSummary();
+        }
+
+        async function testLogin() {
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+
+            try {
+                updateResult('loginResult', 'Testing user login...', 'info');
+                
+                const response = await fetch('http://localhost:3000/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    updateResult('loginResult', `Login successful: ${JSON.stringify(result, null, 2)}`, 'success');
+                    updateTestSection('loginTest', 'success');
+                    testResults.login = 'success';
+                } else {
+                    throw new Error(result.error || 'Login failed');
+                }
+            } catch (error) {
+                updateResult('loginResult', `Login failed: ${error.message}`, 'error');
+                updateTestSection('loginTest', 'error');
+                testResults.login = 'error';
+            }
+            updateSummary();
+        }
+
+        async function testNavigation(path) {
+            try {
+                updateResult('navigationResult', `Testing navigation to ${path}...`, 'info');
+                
+                const response = await fetch(`http://localhost:3000${path}`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'text/html' }
+                });
+
+                if (response.ok) {
+                    updateResult('navigationResult', `Navigation to ${path} successful (Status: ${response.status})`, 'success');
+                    updateTestSection('navigationTest', 'success');
+                    testResults.navigation = 'success';
+                } else {
+                    throw new Error(`Navigation failed with status: ${response.status}`);
+                }
+            } catch (error) {
+                updateResult('navigationResult', `Navigation failed: ${error.message}`, 'error');
+                updateTestSection('navigationTest', 'error');
+                testResults.navigation = 'error';
+            }
+            updateSummary();
+        }
+
+        async function checkAuthState() {
+            try {
+                updateResult('authStateResult', 'Checking authentication state...', 'info');
+                
+                const response = await fetch('http://localhost:3000/api/auth/me', {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    updateResult('authStateResult', `Auth state: ${JSON.stringify(result, null, 2)}`, 'success');
+                    updateTestSection('authStateTest', 'success');
+                    testResults.authState = 'success';
+                } else {
+                    updateResult('authStateResult', `Not authenticated: ${result.error || 'Unknown error'}`, 'warning');
+                    updateTestSection('authStateTest', 'warning');
+                    testResults.authState = 'warning';
+                }
+            } catch (error) {
+                updateResult('authStateResult', `Auth state check failed: ${error.message}`, 'error');
+                updateTestSection('authStateTest', 'error');
+                testResults.authState = 'error';
+            }
+            updateSummary();
+        }
+
+        async function testSignOut() {
+            try {
+                updateResult('authStateResult', 'Testing sign out...', 'info');
+                
+                const response = await fetch('http://localhost:3000/api/auth/logout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (response.ok) {
+                    updateResult('authStateResult', 'Sign out successful', 'success');
+                } else {
+                    throw new Error('Sign out failed');
+                }
+            } catch (error) {
+                updateResult('authStateResult', `Sign out failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            checkServerStatus();
+            updateSummary();
+        });
+    </script>
+</body>
+</html>

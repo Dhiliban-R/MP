@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Donor Dashboard</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .clouds {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 30%, rgba(255,255,255,0.1) 15%, transparent 16%),
+                radial-gradient(circle at 80% 20%, rgba(255,255,255,0.08) 20%, transparent 21%),
+                radial-gradient(circle at 40% 70%, rgba(255,255,255,0.12) 18%, transparent 19%),
+                radial-gradient(circle at 90% 80%, rgba(255,255,255,0.06) 25%, transparent 26%);
+            animation: float 25s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateX(0px) translateY(0px); }
+            25% { transform: translateX(-15px) translateY(-10px); }
+            50% { transform: translateX(10px) translateY(-20px); }
+            75% { transform: translateX(-5px) translateY(-15px); }
+        }
+        
+        .content {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 50px 40px;
+            border-radius: 20px;
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            max-width: 750px;
+            z-index: 2;
+            position: relative;
+        }
+        
+        .icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+            display: block;
+        }
+        
+        h1 {
+            margin: 0 0 20px 0;
+            font-size: 2.8em;
+            font-weight: 700;
+            background: linear-gradient(45deg, #ffffff, #f0fdf4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .subtitle {
+            font-size: 1.3em;
+            margin: 0 0 30px 0;
+            opacity: 0.9;
+            font-weight: 400;
+            line-height: 1.5;
+        }
+        
+        .dashboard-features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 25px;
+            margin: 40px 0;
+        }
+        
+        .feature {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px 25px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            text-align: left;
+        }
+        
+        .feature-icon {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+            display: block;
+        }
+        
+        .feature-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        .feature-desc {
+            font-size: 1em;
+            opacity: 0.9;
+            line-height: 1.4;
+        }
+        
+        .quick-actions {
+            margin-top: 30px;
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .action {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 20px 25px;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            flex: 1;
+            min-width: 150px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .action-icon {
+            font-size: 1.8em;
+            margin-bottom: 8px;
+        }
+        
+        .action-text {
+            font-size: 1em;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="clouds"></div>
+    <div class="content">
+        <span class="icon">📊</span>
+        <h1>Donor Dashboard</h1>
+        <p class="subtitle">Manage your food donations and track your impact from one central location</p>
+        
+        <div class="dashboard-features">
+            <div class="feature">
+                <span class="feature-icon">📝</span>
+                <div class="feature-title">Create Listings</div>
+                <div class="feature-desc">Easily post new food donations with photos, descriptions, and pickup details</div>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">📋</span>
+                <div class="feature-title">Manage Donations</div>
+                <div class="feature-desc">View, edit, and track the status of all your active and past donations</div>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">💬</span>
+                <div class="feature-title">Communication</div>
+                <div class="feature-desc">Chat directly with recipients and coordinate pickup times</div>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">📈</span>
+                <div class="feature-title">Impact Analytics</div>
+                <div class="feature-desc">See how much food you've saved and people you've helped</div>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">🔔</span>
+                <div class="feature-title">Notifications</div>
+                <div class="feature-desc">Get instant alerts when recipients show interest in your donations</div>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">🏆</span>
+                <div class="feature-title">Recognition</div>
+                <div class="feature-desc">Earn badges and certificates for your community contributions</div>
+            </div>
+        </div>
+        
+        <div class="quick-actions">
+            <div class="action">
+                <div class="action-icon">➕</div>
+                <div class="action-text">Add Donation</div>
+            </div>
+            <div class="action">
+                <div class="action-icon">📊</div>
+                <div class="action-text">View Reports</div>
+            </div>
+            <div class="action">
+                <div class="action-icon">⚙️</div>
+                <div class="action-text">Settings</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,6 @@
+{
+    "zencoder.enableRepoIndexing": true,
+    "zencoder.mcpServers": {},
+    "git.ignoreLimitWarning": true,
+    "codium.codeCompletion.enable": true
+}

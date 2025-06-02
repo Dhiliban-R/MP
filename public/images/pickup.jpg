@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pickup and Delivery</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .clouds {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 25% 20%, rgba(255,255,255,0.1) 18%, transparent 19%),
+                radial-gradient(circle at 75% 50%, rgba(255,255,255,0.08) 22%, transparent 23%),
+                radial-gradient(circle at 40% 85%, rgba(255,255,255,0.12) 16%, transparent 17%);
+            animation: float 16s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateX(0px); }
+            50% { transform: translateX(20px); }
+        }
+        
+        .content {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 50px 40px;
+            border-radius: 20px;
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            max-width: 650px;
+            z-index: 2;
+            position: relative;
+        }
+        
+        .icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+            display: block;
+        }
+        
+        h1 {
+            margin: 0 0 20px 0;
+            font-size: 2.8em;
+            font-weight: 700;
+            background: linear-gradient(45deg, #ffffff, #fef2f2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .subtitle {
+            font-size: 1.3em;
+            margin: 0 0 30px 0;
+            opacity: 0.9;
+            font-weight: 400;
+            line-height: 1.5;
+        }
+        
+        .process {
+            display: flex;
+            justify-content: space-between;
+            margin: 40px 0;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        
+        .process-step {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 25px 20px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .step-icon {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+        }
+        
+        .step-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        .step-desc {
+            font-size: 1em;
+            opacity: 0.9;
+            line-height: 1.4;
+        }
+        
+        .tools {
+            margin-top: 30px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        
+        .tool {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            text-align: left;
+        }
+        
+        .tool-icon {
+            font-size: 1.8em;
+            margin-right: 12px;
+        }
+        
+        .tool-text {
+            font-size: 1.1em;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="clouds"></div>
+    <div class="content">
+        <span class="icon">🚚</span>
+        <h1>Pickup & Delivery</h1>
+        <p class="subtitle">Seamless coordination between donors and recipients for efficient food transfer</p>
+        
+        <div class="process">
+            <div class="process-step">
+                <div class="step-icon">📅</div>
+                <div class="step-title">Schedule</div>
+                <div class="step-desc">Coordinate pickup times that work for both parties</div>
+            </div>
+            <div class="process-step">
+                <div class="step-icon">📍</div>
+                <div class="step-title">Navigate</div>
+                <div class="step-desc">Get directions to pickup and delivery locations</div>
+            </div>
+            <div class="process-step">
+                <div class="step-icon">✅</div>
+                <div class="step-title">Complete</div>
+                <div class="step-desc">Confirm successful transfer and track impact</div>
+            </div>
+        </div>
+        
+        <div class="tools">
+            <div class="tool">
+                <span class="tool-icon">📱</span>
+                <span class="tool-text">Real-time Communication</span>
+            </div>
+            <div class="tool">
+                <span class="tool-icon">🗺️</span>
+                <span class="tool-text">GPS Navigation</span>
+            </div>
+            <div class="tool">
+                <span class="tool-icon">📊</span>
+                <span class="tool-text">Delivery Tracking</span>
+            </div>
+            <div class="tool">
+                <span class="tool-icon">🔔</span>
+                <span class="tool-text">Status Notifications</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

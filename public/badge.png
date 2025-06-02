@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FDMS Badge</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .badge-container {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 20px;
+            border-radius: 50%;
+            backdrop-filter: blur(20px);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            width: 80px;
+            height: 80px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        .badge-icon {
+            font-size: 2.5em;
+            display: block;
+            background: linear-gradient(45deg, #ffffff, #fef2f2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .badge-number {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #ffffff;
+            color: #dc2626;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8em;
+            font-weight: 700;
+            border: 2px solid #dc2626;
+        }
+        
+        .glow {
+            position: absolute;
+            top: -10px;
+            left: -10px;
+            right: -10px;
+            bottom: -10px;
+            background: linear-gradient(45deg, rgba(239, 68, 68, 0.4), rgba(220, 38, 38, 0.4));
+            border-radius: 50%;
+            filter: blur(15px);
+            z-index: -1;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; transform: scale(1); }
+            50% { opacity: 0.9; transform: scale(1.1); }
+        }
+    </style>
+</head>
+<body>
+    <div class="badge-container">
+        <div class="glow"></div>
+        <span class="badge-icon">🔔</span>
+        <div class="badge-number">1</div>
+    </div>
+</body>
+</html>
