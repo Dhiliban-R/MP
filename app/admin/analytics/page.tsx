@@ -6,128 +6,85 @@ import BackButton from '@/components/ui/back-button';
 import { BarChart2, Users, Activity, Package, ShoppingBag, Calendar, TrendingUp, Award, Utensils } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LineChart, Line } from 'recharts';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, Timestamp, doc, getDoc } from 'firebase/firestore'; // Added doc, getDoc
 import { AnalyticsData, DonationStatus } from '@/lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast as sonnerToast } from 'sonner'; // For notifications
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Analytics() {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('month');
+  const [timeRange, setTimeRange] = useState<'all' | 'week' | 'month' | 'year'>('all'); // Added 'all'
+  const [error, setError] = useState<string | null>(null);
+  const [allDonationsForFiltering, setAllDonationsForFiltering] = useState<any[]>([]);
+
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
   useEffect(() => {
     const fetchAnalyticsData = async () => {
       setLoading(true);
+      setError(null);
       try {
-        // Get all donations
-        const donationsQuery = query(
-          collection(db, 'donations'),
-          orderBy('createdAt', 'desc')
-        );
-        const donationsSnapshot = await getDocs(donationsQuery);
-        const donations = donationsSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: (doc.data().createdAt as Timestamp)?.toDate() || new Date(),
-        }));
+        // Fetch Aggregated Analytics from 'analytics/summary'
+        const analyticsDocRef = doc(db, 'analytics', 'summary');
+        const analyticsDocSnap = await getDoc(analyticsDocRef);
+        let summaryDataExists = false;
 
-        // Get all users
-        const usersQuery = query(collection(db, 'users'));
-        const usersSnapshot = await getDocs(usersQuery);
-        const users = usersSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-
-        // Calculate donation trends
-        const now = new Date();
-        let startDate: Date;
-        
-        if (timeRange === 'week') {
-          startDate = new Date(now);
-          startDate.setDate(now.getDate() - 7);
-        } else if (timeRange === 'month') {
-          startDate = new Date(now);
-          startDate.setMonth(now.getMonth() - 1);
+        if (analyticsDocSnap.exists()) {
+          summaryDataExists = true;
+          const summary = analyticsDocSnap.data();
+          setAnalyticsData({
+            totalDonations: summary.totalDonations || 0,
+            activeDonations: summary.activeDonations || 0,
+            completedDonations: summary.completedDonations || 0,
+            totalRecipients: summary.totalRecipients || 0,
+            totalDonors: summary.totalDonors || 0,
+            donationsByCategory: summary.donationsByCategory || {},
+            donationTrend: summary.donationTrend || {}, // This is an object {"Mon YYYY": count}
+            impactMetrics: summary.impactMetrics || { mealsProvided: 0, foodWasteSaved: 0, carbonFootprint: 0 },
+          });
         } else {
-          startDate = new Date(now);
-          startDate.setFullYear(now.getFullYear() - 1);
+          console.warn("Analytics summary document not found!");
+          sonnerToast.warning('Analytics summary not found. Some global stats might be missing.');
+          // Initialize with empty/zeroed data if summary is missing
+          setAnalyticsData({
+            totalDonations: 0, activeDonations: 0, completedDonations: 0,
+            totalRecipients: 0, totalDonors: 0,
+            donationsByCategory: {}, donationTrend: {},
+            impactMetrics: { mealsProvided: 0, foodWasteSaved: 0, carbonFootprint: 0 },
+          });
         }
 
-        const filteredDonations = donations.filter(d => 
-          d.createdAt >= startDate && d.createdAt <= now
-        );
+        // If a specific time range is selected (not 'all'), or if summary doesn't exist (for category calculation)
+        // we might need to fetch all donations for client-side filtering for categories/status.
+        // The main trend chart will use summaryData.donationTrend if available.
+        if (timeRange !== 'all' || !summaryDataExists) {
+            const donationsQuery = query(collection(db, 'donations'), orderBy('createdAt', 'desc'));
+            const donationsSnapshot = await getDocs(donationsQuery);
+            const fetchedDonations = donationsSnapshot.docs.map(d => ({
+                id: d.id,
+                ...d.data(),
+                createdAt: (d.data().createdAt as Timestamp)?.toDate() || new Date(),
+            }));
+            setAllDonationsForFiltering(fetchedDonations); // Store for potential client-side filtering
 
-        // Group donations by date
-        const donationsByDate: Record<string, number> = {};
-        filteredDonations.forEach(donation => {
-          let dateKey: string;
-          
-          if (timeRange === 'week') {
-            dateKey = donation.createdAt.toLocaleDateString('en-US', { weekday: 'short' });
-          } else if (timeRange === 'month') {
-            dateKey = donation.createdAt.toLocaleDateString('en-US', { day: '2-digit' });
-          } else {
-            dateKey = donation.createdAt.toLocaleDateString('en-US', { month: 'short' });
-          }
-          
-          donationsByDate[dateKey] = (donationsByDate[dateKey] || 0) + 1;
-        });
+            if (!summaryDataExists) { // If summary didn't exist, populate some stats from full fetch
+                 setAnalyticsData(prev => ({
+                    ...prev!,
+                    totalDonations: fetchedDonations.length,
+                    activeDonations: fetchedDonations.filter(d => d.status === DonationStatus.ACTIVE).length,
+                    completedDonations: fetchedDonations.filter(d => d.status === DonationStatus.COMPLETED).length,
+                    // Note: totalRecipients & totalDonors would still be missing or require user collection scan
+                 }));
+            }
+        }
 
-        // Convert to array for chart
-        const donationTrend = Object.entries(donationsByDate).map(([date, count]) => ({
-          date,
-          count
-        }));
-
-        // Calculate donations by category
-        const donationsByCategory: Record<string, number> = {};
-        filteredDonations.forEach(donation => {
-          const donationData = donation as any; // Type assertion for analytics
-          const category = donationData.category || 'Uncategorized';
-          donationsByCategory[category] = (donationsByCategory[category] || 0) + 1;
-        });
-
-        // Calculate donations by status
-        const donationsByStatus: Record<string, number> = {};
-        filteredDonations.forEach(donation => {
-          const donationData = donation as any; // Type assertion for analytics
-          const status = donationData.status || 'unknown';
-          donationsByStatus[status] = (donationsByStatus[status] || 0) + 1;
-        });
-
-        // Calculate impact metrics
-        const completedDonations = donations.filter(d => (d as any).status === DonationStatus.COMPLETED);
-        const totalQuantity = completedDonations.reduce((sum, d) => sum + ((d as any).quantity || 0), 0);
-        
-        // Estimate meals provided (assuming 1 meal = 0.5kg of food on average)
-        const mealsProvided = Math.round(totalQuantity * 2);
-        
-        // Estimate food waste saved in kg
-        const foodWasteSaved = totalQuantity;
-        
-        // Estimate carbon footprint saved (assuming 2.5kg CO2 saved per kg of food waste)
-        const carbonFootprint = Math.round(foodWasteSaved * 2.5);
-
-        setAnalyticsData({
-          totalDonations: donations.length,
-          activeDonations: donations.filter(d => (d as any).status === DonationStatus.ACTIVE).length,
-          completedDonations: completedDonations.length,
-          totalRecipients: users.filter(u => (u as any).role === 'recipient').length,
-          totalDonors: users.filter(u => (u as any).role === 'donor').length,
-          donationsByCategory,
-          donationTrend,
-          impactMetrics: {
-            mealsProvided,
-            foodWasteSaved,
-            carbonFootprint
-          }
-        });
-      } catch (error) {
-        console.error('Error fetching analytics data:', error);
+      } catch (err) {
+        console.error('Error fetching analytics data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load analytics data.');
+        sonnerToast.error('Failed to load analytics data.');
       } finally {
         setLoading(false);
       }
@@ -136,10 +93,59 @@ export default function Analytics() {
     fetchAnalyticsData();
   }, [timeRange]);
 
-  // Format category data for pie chart
-  const categoryData = analyticsData ? 
-    Object.entries(analyticsData.donationsByCategory).map(([name, value]) => ({ name, value })) : 
-    [];
+  // Prepare data for charts based on analyticsData and potentially timeRange
+  const getChartData = () => {
+    const now = new Date();
+    let startDate: Date;
+    let filteredForRange = allDonationsForFiltering;
+
+    if (timeRange !== 'all') {
+        if (timeRange === 'week') {
+            startDate = new Date(now);
+            startDate.setDate(now.getDate() - 7);
+        } else if (timeRange === 'month') {
+            startDate = new Date(now);
+            startDate.setMonth(now.getMonth() - 1);
+        } else { // year
+            startDate = new Date(now);
+            startDate.setFullYear(now.getFullYear() - 1);
+        }
+        filteredForRange = allDonationsForFiltering.filter(d =>
+            d.createdAt >= startDate && d.createdAt <= now
+        );
+    }
+
+    // Donation Trend Data
+    // Uses summary data if 'all' and summary exists, otherwise calculates from filtered (if needed for specific range)
+    // For this subtask, we'll primarily rely on summary.donationTrend for the main trend chart.
+    // If timeRange !== 'all', this chart might show "data for selected period" or hide if granularity mismatch.
+    // For now, let's assume `analyticsData.donationTrend` (from summary) is the primary source for the trend chart.
+    const trendDataFromSummary = analyticsData?.donationTrend || {};
+    const donationTrendChartData = Object.entries(trendDataFromSummary)
+        .map(([date, count]) => ({ date, count: count as number }))
+        // Simple sort for month-year strings; more robust parsing might be needed for perfect chronological order
+        .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+
+    // Donations by Category Data
+    // Uses summary data if 'all' and summary exists, otherwise calculates from filteredForRange
+    let categoryChartData: { name: string; value: number }[] = [];
+    if (timeRange === 'all' && analyticsData && Object.keys(analyticsData.donationsByCategory).length > 0) {
+        categoryChartData = Object.entries(analyticsData.donationsByCategory).map(([name, value]) => ({ name, value: value as number }));
+    } else if (filteredForRange.length > 0) {
+        const donationsByCategoryInRange: Record<string, number> = {};
+        filteredForRange.forEach(donation => {
+            const category = (donation as any).category || 'Uncategorized';
+            donationsByCategoryInRange[category] = (donationsByCategoryInRange[category] || 0) + 1;
+        });
+        categoryChartData = Object.entries(donationsByCategoryInRange).map(([name, value]) => ({ name, value }));
+    }
+
+    return { donationTrendChartData, categoryChartData };
+  };
+
+  const { donationTrendChartData, categoryChartData } = getChartData();
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white py-10 px-4 md:px-10">
@@ -156,12 +162,13 @@ export default function Analytics() {
         {/* Time range selector */}
         <div className="mb-8">
           <Tabs 
-            defaultValue="month" 
+            defaultValue="all"
             value={timeRange}
-            onValueChange={(value) => setTimeRange(value as 'week' | 'month' | 'year')}
+            onValueChange={(value) => setTimeRange(value as 'all' | 'week' | 'month' | 'year')}
             className="w-full max-w-md"
           >
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4"> {/* Updated for 4 tabs */}
+              <TabsTrigger value="all">All Time</TabsTrigger>
               <TabsTrigger value="week">Last Week</TabsTrigger>
               <TabsTrigger value="month">Last Month</TabsTrigger>
               <TabsTrigger value="year">Last Year</TabsTrigger>
@@ -266,14 +273,14 @@ export default function Analytics() {
               ) : (
                 <ResponsiveContainer width="100%" height={320}>
                   <BarChart
-                    data={analyticsData?.donationTrend || []}
+                    data={donationTrendChartData} // Use processed data
                     margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
+                    <XAxis dataKey="date" /> {/* Ensure this matches processed data key */}
                     <YAxis />
                     <Tooltip />
-                    <Bar dataKey="count" fill="#8884d8" name="Donations" />
+                    <Bar dataKey="count" fill="#8884d8" name="Donations" /> {/* Ensure this matches processed data key */}
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -287,7 +294,7 @@ export default function Analytics() {
                 Donations by Category
               </CardTitle>
               <CardDescription>
-                Distribution of donations across different food categories
+                Distribution of donations across different food categories {timeRange !== 'all' ? `(Last ${timeRange})` : '(All Time)'}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -299,7 +306,7 @@ export default function Analytics() {
                 <ResponsiveContainer width="100%" height={320}>
                   <PieChart>
                     <Pie
-                      data={categoryData}
+                      data={categoryChartData} // Use processed data
                       cx="50%"
                       cy="50%"
                       labelLine={false}
@@ -308,7 +315,7 @@ export default function Analytics() {
                       fill="#8884d8"
                       dataKey="value"
                     >
-                      {categoryData.map((entry, index) => (
+                      {categoryChartData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
