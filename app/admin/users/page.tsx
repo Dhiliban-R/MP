@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState, Suspense } from 'react';
 import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, functions } from '@/lib/firebase'; // Import functions
+import { httpsCallable } from 'firebase/functions'; // Import httpsCallable
 import { User as BaseUser } from '@/lib/types';
 
 // Extend User type locally to include id and status
@@ -148,20 +149,44 @@ export default function AdminUsersPage() {
 
     setIsDeleting(true);
     try {
-      // TODO: Implement actual Firebase user deletion logic
-      // Note: Deleting a user in Firebase Auth requires a server-side or admin SDK.
-      // For now, we'll just remove from the local state and show a success message.
-      console.log('Deleting user:', userToDelete.id);
-      setUsers(users.filter(user => user.id !== userToDelete.id));
-      toast.success(`User ${userToDelete.displayName || userToDelete.email} deleted successfully (simulated).`);
+      const deleteUserFn = httpsCallable(functions, 'deleteUserAccount');
+      await deleteUserFn({ userIdToDelete: userToDelete.id });
+
+      // Update local state to reflect deletion
+      setUsers(prevUsers => prevUsers.filter(user => user.id !== userToDelete.id));
+      toast.success(`User ${userToDelete.displayName || userToDelete.email} successfully deleted.`);
       setUserToDelete(null);
     } catch (error) {
       console.error('Error deleting user:', error);
-      toast.error('Failed to delete user. Please try again.');
+      toast.error('Failed to delete user. Please check logs for details.');
     } finally {
       setIsDeleting(false);
     }
   };
+
+  const fetchUsers = async () => { // Define fetchUsers to refresh list if needed later
+    setLoading(true);
+    try {
+      const usersCollection = collection(db, 'users');
+      const userSnapshot = await getDocs(usersCollection);
+      const usersList = userSnapshot.docs.map(doc => ({
+        id: doc.id,
+        status: 'active', // Default or derive as needed
+        ...doc.data()
+      })) as User[];
+      setUsers(usersList);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      toast.error('Failed to fetch users.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
 
   if (loading) {
     return (

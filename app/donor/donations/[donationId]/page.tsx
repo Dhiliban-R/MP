@@ -221,6 +221,7 @@ export default function ViewDonationPage() {
                     height="100%"
                     initialCenter={pickupLocation}
                     initialZoom={14}
+                    donations={donation && pickupLocation ? [donation] : []} // Pass the current donation
                   />
               ) : (
                 <div className="flex items-center justify-center h-full text-muted-foreground">

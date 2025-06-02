@@ -1,4 +1,5 @@
 import { Address } from './user.types';
+import { GeoPoint } from 'firebase/firestore'; // Import GeoPoint
 
 export enum DonationStatus {
   PENDING = 'pending',
@@ -28,6 +29,9 @@ export interface Donation {
   reservedBy?: string;
   reservedAt?: Date;
   completedAt?: Date;
+  // Location specific fields for geoqueries
+  geopoint?: GeoPoint;
+  geohash?: string;
 }
 
 export interface DonationWithDistance extends Donation {

@@ -228,6 +228,7 @@ export default function RecipientDonationDetailsPage() {
                     }}
                     initialZoom={14}
                     showUserLocation={false}
+                    donations={donation && donation.pickupAddress?.latitude && donation.pickupAddress?.longitude ? [donation] : []}
                   />
                 </div>
               ) : (

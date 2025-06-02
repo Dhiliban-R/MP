@@ -17,12 +17,14 @@ import { z } from 'zod';
 import { format } from 'date-fns';
 import { CalendarIcon, Loader2, ImagePlus, X, MapPin } from 'lucide-react';
 import { db, storage } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, GeoPoint } from 'firebase/firestore'; // Import GeoPoint
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { toast } from 'sonner';
+import { geohashForLocation } from 'geofire-common'; // Import geohashForLocation
 import { cn } from '@/lib/utils';
 import { DonationStatus, Address } from '@/lib/types';
 import { useAppStore } from '@/store/store';
+import { geocodeAddress } from '@/lib/location-service'; // Import geocodeAddress
 
 // Define the form schema with Zod
 const formSchema = z.object({
@@ -212,11 +214,41 @@ export default function DonationForm() {
     setIsSubmitting(true);
     
     try {
+      // Geocode address if coordinates are missing and not using current location
+      if (
+        (!data.pickupAddress.latitude || !data.pickupAddress.longitude) &&
+        !isUsingCurrentLocation && // Only geocode if not already set by "Use Current Location"
+        data.pickupAddress.street && // Ensure basic address fields are present
+        data.pickupAddress.city &&
+        data.pickupAddress.country
+      ) {
+        toast.info('Attempting to geocode address...');
+        const fullAddressString = `${data.pickupAddress.street}, ${data.pickupAddress.city}, ${data.pickupAddress.state}, ${data.pickupAddress.postalCode}, ${data.pickupAddress.country}`;
+
+        try {
+          const coords = await geocodeAddress(fullAddressString);
+          if (coords) {
+            data.pickupAddress.latitude = coords.latitude;
+            data.pickupAddress.longitude = coords.longitude;
+            toast.success('Address geocoded successfully!');
+          } else {
+            toast.error('Failed to geocode address. Please verify the address or use current location.');
+            setIsSubmitting(false);
+            return; // Stop submission
+          }
+        } catch (geoError) {
+          console.error('Geocoding error:', geoError);
+          toast.error('An error occurred during geocoding. Please try again.');
+          setIsSubmitting(false);
+          return; // Stop submission
+        }
+      }
+
       // Upload images first
       const imageUrls = await uploadImages(imageFiles);
       
       // Prepare donation data
-      const donationData = {
+      const donationData: any = { // Use 'any' or a more specific type for now
         ...data,
         imageUrls,
         donorId: user.uid,
@@ -225,6 +257,12 @@ export default function DonationForm() {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
+
+      // Add geopoint and geohash if coordinates are available
+      if (data.pickupAddress.latitude && data.pickupAddress.longitude) {
+        donationData.geopoint = new GeoPoint(data.pickupAddress.latitude, data.pickupAddress.longitude);
+        donationData.geohash = geohashForLocation([data.pickupAddress.latitude, data.pickupAddress.longitude]);
+      }
       
       // Add to Firestore
       const docRef = await addDoc(collection(db, 'donations'), donationData);

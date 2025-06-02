@@ -22,174 +22,107 @@ import {
   Heart,
   Eye
 } from 'lucide-react';
-import { GoogleMapComponent } from '@/components/GoogleMapComponent';
-
-interface Donation {
-  id: string;
-  title: string;
-  description: string;
-  donorName: string;
-  donorRating: number;
-  category: string;
-  quantity: number;
-  quantityUnit: string;
-  expiryDate: Date;
-  pickupTimeStart: Date;
-  pickupTimeEnd: Date;
-  address: string;
-  distance: number;
-  imageUrl?: string;
-  tags: string[];
-  status: 'available' | 'reserved' | 'expired';
-}
+import { MapView } from '@/components/ui/map-view'; // Import MapView
+import { useDonations } from '@/hooks/use-donations';
+import { Donation, DonationStatus } from '@/lib/types'; // Assuming global Donation type
+import { format } from 'date-fns'; // For date formatting
 
 export default function AvailableDonationsPage() {
-  const { user, loading, isAuthorized } = useAuth();
+  const { user, loading: authLoading, isAuthorized } = useAuth();
   const router = useRouter();
-  const [donations, setDonations] = useState<Donation[]>([]);
+
+  const {
+    donations: allFetchedDonations,
+    loading: donationsLoading,
+    error: donationsError,
+    reserveDonation: hookReserveDonation, // Use from hook
+    refreshDonations // Use from hook
+  } = useDonations({ realtime: true }); // Fetches available donations by default
+
   const [filteredDonations, setFilteredDonations] = useState<Donation[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [sortBy, setSortBy] = useState('distance');
+  const [sortBy, setSortBy] = useState('expiryDate'); // Default sort by expiry
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!loading && (!user || !isAuthorized('recipient'))) {
-      router.push('/auth/login');
+    if (!authLoading && (!user || !isAuthorized('recipient'))) {
+      router.push('/auth/login?message=Please log in as a recipient to view available donations.');
     }
-  }, [user, loading, isAuthorized, router]);
+  }, [user, authLoading, isAuthorized, router]);
 
   useEffect(() => {
-    // Mock data for available donations
-    const mockDonations: Donation[] = [
-      {
-        id: '1',
-        title: 'Fresh Organic Vegetables',
-        description: 'Assorted fresh vegetables including carrots, lettuce, tomatoes, and bell peppers. All organic and freshly harvested.',
-        donorName: 'Green Valley Farms',
-        donorRating: 4.8,
-        category: 'Fresh Produce',
-        quantity: 25,
-        quantityUnit: 'kg',
-        expiryDate: new Date('2025-05-27'),
-        pickupTimeStart: new Date('2025-05-25T09:00:00'),
-        pickupTimeEnd: new Date('2025-05-25T17:00:00'),
-        address: '123 Farm Road, Green Valley',
-        distance: 2.5,
-        imageUrl: '/images/vegetables.jpg',
-        tags: ['Organic', 'Fresh', 'Local'],
-        status: 'available'
-      },
-      {
-        id: '2',
-        title: 'Artisan Bread & Pastries',
-        description: 'Fresh baked bread, croissants, and pastries from our daily production. Perfect for breakfast programs.',
-        donorName: 'Sunshine Bakery',
-        donorRating: 4.9,
-        category: 'Bakery Items',
-        quantity: 15,
-        quantityUnit: 'loaves',
-        expiryDate: new Date('2025-05-22'),
-        pickupTimeStart: new Date('2025-05-21T18:00:00'),
-        pickupTimeEnd: new Date('2025-05-21T20:00:00'),
-        address: '456 Baker Street, Downtown',
-        distance: 1.2,
-        imageUrl: '/images/bread.jpg',
-        tags: ['Fresh Baked', 'Artisan', 'Daily'],
-        status: 'available'
-      },
-      {
-        id: '3',
-        title: 'Prepared Meals - Italian Cuisine',
-        description: 'Ready-to-eat Italian meals including pasta, pizza, and salads. Prepared fresh today.',
-        donorName: 'Bella Vista Restaurant',
-        donorRating: 4.7,
-        category: 'Prepared Meals',
-        quantity: 30,
-        quantityUnit: 'portions',
-        expiryDate: new Date('2025-05-21'),
-        pickupTimeStart: new Date('2025-05-21T20:00:00'),
-        pickupTimeEnd: new Date('2025-05-21T22:00:00'),
-        address: '789 Restaurant Row, Little Italy',
-        distance: 3.1,
-        imageUrl: '/images/italian-food.jpg',
-        tags: ['Ready to Eat', 'Italian', 'Hot'],
-        status: 'available'
-      },
-      {
-        id: '4',
-        title: 'Canned Goods & Non-Perishables',
-        description: 'Variety of canned vegetables, soups, pasta, rice, and other shelf-stable items.',
-        donorName: 'Community Pantry',
-        donorRating: 4.6,
-        category: 'Canned Goods',
-        quantity: 50,
-        quantityUnit: 'items',
-        expiryDate: new Date('2025-12-31'),
-        pickupTimeStart: new Date('2025-05-22T10:00:00'),
-        pickupTimeEnd: new Date('2025-05-22T16:00:00'),
-        address: '321 Community Center Dr, Midtown',
-        distance: 4.2,
-        imageUrl: '/images/canned-goods.jpg',
-        tags: ['Long Shelf Life', 'Variety', 'Bulk'],
-        status: 'available'
-      }
-    ];
-
-    setDonations(mockDonations);
-    setFilteredDonations(mockDonations);
-    setIsLoading(false);
-  }, []);
+    if (donationsError) {
+      toast.error(donationsError || 'Failed to load donations.');
+    }
+  }, [donationsError]);
 
   // Filter and sort donations
   useEffect(() => {
-    let filtered = donations.filter(donation => {
+    let currentDonations = allFetchedDonations || [];
+
+    let filtered = currentDonations.filter(donation => {
       const matchesSearch = donation.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           donation.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           donation.donorName.toLowerCase().includes(searchQuery.toLowerCase());
+                           (donation.description && donation.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                           (donation.donorName && donation.donorName.toLowerCase().includes(searchQuery.toLowerCase()));
       const matchesCategory = selectedCategory === 'all' || donation.category === selectedCategory;
-      return matchesSearch && matchesCategory;
+      // Ensure only active donations are shown, hook should already do this, but as a safeguard
+      return matchesSearch && matchesCategory && donation.status === DonationStatus.ACTIVE;
     });
 
     // Sort donations
     filtered.sort((a, b) => {
       switch (sortBy) {
-        case 'distance':
-          return a.distance - b.distance;
-        case 'expiry':
-          return a.expiryDate.getTime() - b.expiryDate.getTime();
+        case 'expiryDate':
+          return (new Date(a.expiryDate)).getTime() - (new Date(b.expiryDate)).getTime();
         case 'quantity':
           return b.quantity - a.quantity;
-        case 'rating':
-          return b.donorRating - a.donorRating;
+        // Add other relevant sort options if needed, e.g., createdAt
+        case 'createdAt':
+          return (new Date(b.createdAt || 0)).getTime() - (new Date(a.createdAt || 0)).getTime();
         default:
           return 0;
       }
     });
 
     setFilteredDonations(filtered);
-  }, [donations, searchQuery, selectedCategory, sortBy]);
+  }, [allFetchedDonations, searchQuery, selectedCategory, sortBy]);
 
-  const categories = ['all', 'Fresh Produce', 'Bakery Items', 'Prepared Meals', 'Canned Goods', 'Dairy Products'];
+  const categories = ['all', 'Fresh Produce', 'Bakery Items', 'Prepared Meals', 'Canned Goods', 'Dairy Products', 'Beverages', 'Grains & Pasta', 'Meat & Seafood', 'Snacks', 'Baby Food', 'Other'];
 
   const handleReserveDonation = async (donationId: string) => {
+    if (!user) {
+      toast.error('You must be logged in to reserve a donation.');
+      return;
+    }
     try {
-      // In a real app, this would make an API call
-      toast.success('Donation reserved successfully!');
-      // Update local state
-      setDonations(prev => prev.map(d =>
-        d.id === donationId ? { ...d, status: 'reserved' as const } : d
-      ));
+      // Assuming user.displayName can be used as recipientName
+      await hookReserveDonation(donationId, user.displayName || 'Recipient');
+      // Real-time updates should handle UI change, or call refreshDonations if needed
+      // For immediate feedback, can optimistically update or rely on toast from hook
     } catch (error) {
-      toast.error('Failed to reserve donation. Please try again.');
+      // Error is already handled by the hook's toast
     }
   };
 
-  if (loading || !user || !isAuthorized('recipient')) {
+  if (authLoading || (donationsLoading && !allFetchedDonations.length)) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div>Loading...</div>
+        <div className="flex items-center">
+          <Search className="h-6 w-6 animate-pulse mr-2" />
+          <span>Loading available donations...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (donationsError && !allFetchedDonations.length) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <Package className="h-12 w-12 text-destructive mb-4" />
+        <h2 className="text-xl font-semibold text-destructive mb-2">Error Loading Donations</h2>
+        <p className="text-muted-foreground mb-4">{donationsError}</p>
+        <Button onClick={() => refreshDonations && refreshDonations()}>Try Again</Button>
       </div>
     );
   }
@@ -251,10 +184,10 @@ export default function AvailableDonationsPage() {
                   <SelectValue placeholder="Sort by" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="distance">Distance</SelectItem>
-                  <SelectItem value="expiry">Expiry Date</SelectItem>
+                  <SelectItem value="expiryDate">Expiry Date</SelectItem>
                   <SelectItem value="quantity">Quantity</SelectItem>
-                  <SelectItem value="rating">Donor Rating</SelectItem>
+                  <SelectItem value="createdAt">Date Added</SelectItem>
+                  {/* Removed distance and rating as they are not in global Donation type */}
                 </SelectContent>
               </Select>
             </div>
@@ -284,7 +217,7 @@ export default function AvailableDonationsPage() {
         {viewMode === 'list' ? (
           /* List View */
           <div className="space-y-4">
-            {isLoading ? (
+            {(donationsLoading && filteredDonations.length === 0) ? ( // Show skeleton if loading and no data yet
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {[1, 2, 3].map(i => (
                   <Card key={i} className="animate-pulse">

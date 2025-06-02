@@ -10,10 +10,12 @@ import { StatsCard } from '@/components/ui/stats-card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Badge } from '@/components/ui/badge';
 import { DonationStatus, Donation } from '@/lib/types';
-import { db } from '@/lib/firebase';
-import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
+// import { db } from '@/lib/firebase'; // Direct db access no longer needed
+// import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore'; // Direct db access no longer needed
+import { getDonationsByDonorId, getDonorStats } from '@/lib/donation-service'; // Import service functions
 import { useAuth } from '@/hooks/useAuth';
-import { Package, Clock, CheckCircle, AlertTriangle, Plus, User, Map, History } from 'lucide-react';
+import { toast } from 'sonner'; // For error notifications
+import { Package, Clock, CheckCircle, AlertTriangle, Plus, User, Map, History, TrendingUp } from 'lucide-react'; // Added TrendingUp
 import Link from 'next/link';
 import LoadingSpinner from '@/components/LoadingSpinner';
 
@@ -23,106 +25,81 @@ export default function DonorDashboardPage() {
   const [stats, setStats] = useState({
     total: 0,
     active: 0,
+    reserved: 0,
     completed: 0,
-    expired: 0
+    expired: 0,
+    cancelled: 0, // Added for completeness from getDonorStats
   });
   const [loading, setLoading] = useState(true);
+  const [donationTrendData, setDonationTrendData] = useState<{ name: string; value: number }[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
 
   useEffect(() => {
     const fetchDonorData = async () => {
-      try {
-        // For demo purposes, using mock data
-        // In production, this would fetch from Firestore based on the logged-in donor
-        const mockDonations = [
-          {
-            id: 'd1',
-            title: 'Fresh vegetables from local farm',
-            description: 'Various seasonal vegetables including carrots, lettuce, and tomatoes',
-            status: DonationStatus.ACTIVE,
-            createdAt: new Date('2025-05-20'),
-            expiryDate: new Date('2025-05-27'),
-            quantity: 25,
-            quantityUnit: 'kg',
-            reservedBy: null
-          },
-          {
-            id: 'd2',
-            title: 'Bakery items - day old bread and pastries',
-            description: 'Assorted bread loaves, rolls, and pastries from yesterday',
-            status: DonationStatus.RESERVED,
-            createdAt: new Date('2025-05-19'),
-            expiryDate: new Date('2025-05-22'),
-            quantity: 40,
-            quantityUnit: 'items',
-            reservedBy: 'Community Food Bank'
-          },
-          {
-            id: 'd3',
-            title: 'Canned soups and vegetables',
-            description: 'Various canned goods with at least 6 months shelf life',
-            status: DonationStatus.COMPLETED,
-            createdAt: new Date('2025-05-18'),
-            expiryDate: new Date('2025-11-18'),
-            quantity: 35,
-            quantityUnit: 'cans',
-            reservedBy: 'Hope Shelter'
-          },
-          {
-            id: 'd4',
-            title: 'Dairy products - milk and yogurt',
-            description: 'Fresh milk and yogurt with 5 days shelf life',
-            status: DonationStatus.EXPIRED,
-            createdAt: new Date('2025-05-15'),
-            expiryDate: new Date('2025-05-20'),
-            quantity: 15,
-            quantityUnit: 'liters',
-            reservedBy: null
-          }
-        ];
-
-        setDonations(mockDonations);
-
-        // Calculate stats
-        const total = mockDonations.length;
-        const active = mockDonations.filter(d => d.status === DonationStatus.ACTIVE).length;
-        const completed = mockDonations.filter(d => d.status === DonationStatus.COMPLETED).length;
-        const expired = mockDonations.filter(d => d.status === DonationStatus.EXPIRED).length;
-
-        setStats({
-          total,
-          active,
-          completed,
-          expired
-        });
-
+      if (!user?.uid) {
         setLoading(false);
-      } catch (error) {
-        console.error('Error fetching donor data:', error);
+        // Optionally, redirect or show message if user is not available
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+      try {
+        // Fetch Stats and Trend
+        const statsData = await getDonorStats(user.uid);
+        setStats({
+          total: statsData.total,
+          active: statsData.active,
+          reserved: statsData.reserved,
+          completed: statsData.completed,
+          expired: statsData.expired,
+          cancelled: statsData.cancelled,
+        });
+        setDonationTrendData(
+          statsData.donationTrend.map(item => ({ name: item.date, value: item.count }))
+        );
+
+        // Fetch Recent Donations (e.g., latest 5)
+        // Assuming getDonationsByDonorId returns them sorted by createdAt desc
+        const allDonations = await getDonationsByDonorId(user.uid);
+        setDonations(allDonations.slice(0, 5)); // Displaying latest 5, or adjust as needed
+
+      } catch (err) {
+        console.error('Error fetching donor data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load dashboard data.');
+        toast.error('Failed to load dashboard data.');
+      } finally {
         setLoading(false);
       }
     };
 
     if (user) {
       fetchDonorData();
+    } else {
+      // Handle case where user is not yet available (e.g. still loading from useAuth)
+      // For now, we just don't fetch if user is null, loading spinner will show.
+      // If user is definitively null after auth loading, might redirect or show login prompt.
+       if (!loading && !user) { // Check auth loading state from useAuth() if available
+         router.push('/auth/login');
+       }
     }
-  }, [user]);
+  }, [user, loading]); // `loading` from useAuth if it provides it, otherwise remove
 
-  if (loading) {
+  if (loading) { // This is the component's own loading state
     return <LoadingSpinner />;
   }
 
-  // Data for donation trend chart
-  const donationTrendData = [
-    { date: 'Jan', count: 3 },
-    { date: 'Feb', count: 5 },
-    { date: 'Mar', count: 2 },
-    { date: 'Apr', count: 7 },
-    { date: 'May', count: 4 }
-  ].map(item => ({
-    name: item.date,
-    value: item.count
-  }));
-
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen">
+        <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
+        <h2 className="text-2xl font-semibold text-destructive mb-2">Error Loading Dashboard</h2>
+        <p className="text-muted-foreground mb-4">{error}</p>
+        <Button onClick={() => window.location.reload()} variant="outline">Try Again</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -211,19 +188,26 @@ export default function DonorDashboardPage() {
         <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-gray-50/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-primary" />
+                <TrendingUp className="h-5 w-5 text-primary" />
               Your Donation Activity
             </CardTitle>
             <CardDescription>Monthly donation trends and impact overview</CardDescription>
           </CardHeader>
           <CardContent>
-            <AreaChart
-              data={donationTrendData}
-              xField="name"
-              yField="value"
-              height={250}
-              colors={['hsl(var(--chart-1))']}
-            />
+              {donationTrendData.length > 0 ? (
+                <AreaChart
+                  data={donationTrendData}
+                  xField="name"
+                  yField="value"
+                  height={250}
+                  colors={['hsl(var(--chart-1))']}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-[250px]">
+                  <TrendingUp className="h-12 w-12 text-muted-foreground mb-2" />
+                  <p className="text-muted-foreground">No donation trend data yet.</p>
+                </div>
+              )}
           </CardContent>
         </Card>
 
@@ -231,7 +215,7 @@ export default function DonorDashboardPage() {
         <Card className="shadow-lg border-0">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-primary" />
+              <History className="h-5 w-5 text-primary" /> {/* Changed Icon */}
               Your Recent Donations
             </CardTitle>
             <CardDescription>Track and manage your recent donations</CardDescription>
