@@ -193,6 +193,8 @@ export const onNewDonation = onDocumentCreated("donations/{donationId}", async (
     logger.info("Analytics updated for new donation.");
     
     // Create geohash for location-based queries if coordinates are provided
+    // Commenting out as per subtask requirements - client will handle this for now.
+    /*
     if (donationData.pickupAddress && 
         typeof donationData.pickupAddress.latitude === 'number' && 
         typeof donationData.pickupAddress.longitude === 'number') {
@@ -212,10 +214,40 @@ export const onNewDonation = onDocumentCreated("donations/{donationId}", async (
       
       logger.info(`Geohash ${geohash} added to donation ${donationId}`);
     }
-    
-    // Send notifications to nearby recipients
-    // This would typically use a geospatial query to find recipients in the area
-    // For now, we'll notify all recipients
+    */
+
+    // Send notifications to all recipients directly
+    logger.info("Attempting to send notifications for new donation to all recipients.");
+    const recipientsSnapshot = await db.collection('users').where('role', '==', 'recipient').get();
+
+    if (recipientsSnapshot.empty) {
+      logger.info('No recipients found to notify.');
+    } else {
+      logger.info(`Found ${recipientsSnapshot.size} recipients to notify.`);
+      for (const recipientDoc of recipientsSnapshot.docs) {
+        // const recipient = recipientDoc.data(); // recipient data not directly used here, id is enough
+        const recipientId = recipientDoc.id;
+        const tokens = await getUserFcmTokens(recipientId);
+
+        if (tokens.length > 0) {
+          const notificationTitle = 'New Donation Available!';
+          // Using a more generic body as "near you" might not be accurate without location-based filtering
+          const notificationBody = `A new donation "${donationData.title}" has been listed. Check it out!`;
+          const notificationDataPayload = {
+            donationId,
+            type: 'new_donation',
+            link: `/recipient/donations/${donationId}` // Link recipient to the specific donation
+          };
+
+          await sendNotificationToTokens(tokens, notificationTitle, notificationBody, notificationDataPayload);
+          logger.info(`Notification sent to recipient ${recipientId} for new donation ${donationId}`);
+        } else {
+          logger.info(`Recipient ${recipientId} has no active FCM tokens.`);
+        }
+      }
+    }
+    // Old topic-based messaging commented out
+    /*
     const message = {
       notification: {
         title: 'New Donation Available!',
@@ -228,9 +260,9 @@ export const onNewDonation = onDocumentCreated("donations/{donationId}", async (
       },
       topic: 'role-recipient', // Send to all recipients
     };
-    
     await messaging.send(message);
     logger.info('Notification sent to recipients for new donation.');
+    */
     
   } catch (error) {
     logger.error('Error processing new donation:', error);

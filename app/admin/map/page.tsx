@@ -6,151 +6,44 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MapView } from '@/components/ui/map-view';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, Filter, MapPin } from 'lucide-react';
+import { Search, Filter, MapPin, Loader2 } from 'lucide-react'; // Added Loader2
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, Timestamp } from 'firebase/firestore'; // Added orderBy, Timestamp
 import { Donation, DonationStatus } from '@/lib/types';
+import { toast } from 'sonner'; // For error notifications
 
 export default function AdminMapPage() {
   const [activeTab, setActiveTab] = useState('all');
   const [donations, setDonations] = useState<Donation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
+      setError(null);
       try {
-        // In a real app, this would fetch from Firestore
-        // For demo, we're using mock data
-        
-        // Mock donations with location data
-        const mockDonations = [
-          {
-            id: 'm1',
-            donorId: 'd1',
-            donorName: 'Green Valley Farms',
-            title: 'Fresh vegetables',
-            description: 'Variety of fresh vegetables including lettuce, carrots, and tomatoes',
-            category: 'Fresh Produce',
-            quantity: 20,
-            quantityUnit: 'kg',
-            imageUrls: [],
-            pickupAddress: {
-              street: '123 Main St',
-              city: 'New York',
-              state: 'NY',
-              postalCode: '10001',
-              country: 'USA',
-              latitude: 40.730610 + 0.01,
-              longitude: -73.935242 - 0.01
-            },
-            expiryDate: new Date('2025-05-30'),
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            status: DonationStatus.ACTIVE
-          },
-          {
-            id: 'm2',
-            donorId: 'd2',
-            donorName: 'Metro Grocery',
-            title: 'Bread and pastries',
-            description: 'Day-old bread and pastries still fresh for consumption',
-            category: 'Bakery Items',
-            quantity: 15,
-            quantityUnit: 'items',
-            imageUrls: [],
-            pickupAddress: {
-              street: '456 Broadway',
-              city: 'New York',
-              state: 'NY',
-              postalCode: '10002',
-              country: 'USA',
-              latitude: 40.730610 - 0.01,
-              longitude: -73.935242 + 0.005
-            },
-            expiryDate: new Date('2025-05-28'),
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            status: DonationStatus.ACTIVE
-          },
-          {
-            id: 'm3',
-            donorId: 'd3',
-            donorName: 'Community Kitchen',
-            title: 'Prepared meals',
-            description: 'Prepared meals ready for pickup and distribution',
-            category: 'Prepared Meals',
-            quantity: 30,
-            quantityUnit: 'meals',
-            imageUrls: [],
-            pickupAddress: {
-              street: '789 Park Ave',
-              city: 'New York',
-              state: 'NY',
-              postalCode: '10003',
-              country: 'USA',
-              latitude: 40.730610 + 0.005,
-              longitude: -73.935242 + 0.01
-            },
-            expiryDate: new Date('2025-05-26'),
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            status: DonationStatus.ACTIVE
-          },
-          {
-            id: 'm4',
-            donorId: 'd4',
-            donorName: 'Local Restaurant',
-            title: 'Surplus prepared food',
-            description: 'End of day prepared food items',
-            category: 'Prepared Meals',
-            quantity: 12,
-            quantityUnit: 'portions',
-            imageUrls: [],
-            pickupAddress: {
-              street: '101 5th Ave',
-              city: 'New York',
-              state: 'NY',
-              postalCode: '10011',
-              country: 'USA',
-              latitude: 40.740610,
-              longitude: -73.995242
-            },
-            expiryDate: new Date('2025-05-26'),
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            status: DonationStatus.RESERVED
-          },
-          {
-            id: 'm5',
-            donorId: 'd5',
-            donorName: 'Grocery Co-op',
-            title: 'Canned goods',
-            description: 'Assorted canned vegetables and fruits',
-            category: 'Canned Goods',
-            quantity: 50,
-            quantityUnit: 'cans',
-            imageUrls: [],
-            pickupAddress: {
-              street: '222 Hudson St',
-              city: 'New York',
-              state: 'NY',
-              postalCode: '10013',
-              country: 'USA',
-              latitude: 40.726650,
-              longitude: -74.008846
-            },
-            expiryDate: new Date('2025-08-15'),
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            status: DonationStatus.ACTIVE
-          }
-        ];
-
-        setDonations(mockDonations);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching donations:', error);
+        const q = query(collection(db, 'donations'), orderBy('createdAt', 'desc'));
+        const querySnapshot = await getDocs(q);
+        const fetchedDonations: Donation[] = querySnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            createdAt: (data.createdAt as Timestamp)?.toDate(),
+            updatedAt: (data.updatedAt as Timestamp)?.toDate(),
+            expiryDate: (data.expiryDate as Timestamp)?.toDate(),
+            reservedAt: (data.reservedAt as Timestamp)?.toDate(),
+            completedAt: (data.completedAt as Timestamp)?.toDate(),
+          } as Donation;
+        });
+        setDonations(fetchedDonations);
+      } catch (err) {
+        console.error('Error fetching donations:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch donations');
+        toast.error('Failed to load donations. Please try again.');
+      } finally {
         setLoading(false);
       }
     };
@@ -158,25 +51,43 @@ export default function AdminMapPage() {
     fetchData();
   }, []);
 
-  // Filter donations based on active tab
+  // Filter donations based on active tab and search term
   const filteredDonations = donations.filter(donation => {
     const searchTermLower = searchTerm.toLowerCase();
     const titleMatch = donation.title.toLowerCase().includes(searchTermLower);
-    const donorNameMatch = donation.donorName.toLowerCase().includes(searchTermLower);
+    const donorNameMatch = donation.donorName?.toLowerCase().includes(searchTermLower) || false;
+    const categoryMatch = donation.category?.toLowerCase().includes(searchTermLower) || false;
+    const cityMatch = donation.pickupAddress?.city?.toLowerCase().includes(searchTermLower) || false;
 
-    if (!titleMatch && !donorNameMatch) {
+
+    const searchMatches = titleMatch || donorNameMatch || categoryMatch || cityMatch;
+
+    if (!searchMatches) {
       return false;
     }
 
     if (activeTab === 'all') return true;
-    if (activeTab === 'active') return donation.status === DonationStatus.ACTIVE;
-    if (activeTab === 'reserved') return donation.status === DonationStatus.RESERVED;
-    if (activeTab === 'completed') return donation.status === DonationStatus.COMPLETED;
-    return true;
+    return donation.status === activeTab; // Directly compare with DonationStatus values
   });
 
   if (loading) {
-    return <div className="flex items-center justify-center h-96">Loading map data...</div>;
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="h-8 w-8 animate-spin text-primary mr-2" />
+        Loading map data...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 text-destructive">
+        <MapPin className="h-12 w-12 mb-4" />
+        <h3 className="text-xl font-semibold mb-2">Error Loading Donations</h3>
+        <p className="text-center mb-4">{error}</p>
+        <Button onClick={() => window.location.reload()} variant="outline">Try Again</Button>
+      </div>
+    );
   }
 
   return (
