@@ -5,16 +5,29 @@ import { getStorage, connectStorageEmulator } from 'firebase/storage';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBt01LvtM44Q0iFWnKlAuYC9V-mycCb5go",
-  authDomain: "fdms-e94f8.firebaseapp.com",
-  projectId: "fdms-e94f8",
-  storageBucket: "fdms-e94f8.firebasestorage.app",
-  messagingSenderId: "103517737213",
-  appId: "1:103517737213:web:d3e57cd8f8afb1421dee94",
-  measurementId: "G-QNZ1WLDTWC"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID, // Optional
 };
 
+// Check for critical Firebase configuration variables
+if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+  console.error(
+    "CRITICAL: Firebase API Key or Project ID is not set in environment variables. " +
+    "Firebase functionalities will be severely impacted or fail. " +
+    "Please ensure NEXT_PUBLIC_FIREBASE_API_KEY and NEXT_PUBLIC_FIREBASE_PROJECT_ID are correctly set."
+  );
+  // In a stricter setup, you might throw an error here, especially if not in a test environment.
+  // throw new Error("Firebase configuration is missing critical environment variables.");
+}
+
+
 // Initialize Firebase
+// Check if Firebase app has already been initialized to prevent re-initialization error
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 // Initialize Firebase services
